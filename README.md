@@ -44,3 +44,8 @@ Used to communicate with the daemon through TCP IPC.
     -m, --mode=<mode>              Set mode to given value (must be on of the predefined modes)
     -h, --host=<host>              The hostname/address of the server [default: localhost]
     -p, --port=<port>              The port number used to connect to the server [default: 5795]
+
+
+## Acknowledgements
+
+IPC module is based on the work of Dan Krause. Check it out at: [https://gist.github.com/dankrause/9607475](https://gist.github.com/dankrause/9607475)
