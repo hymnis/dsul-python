@@ -25,11 +25,11 @@ This part handles communication with the hardware (serial connection) and allows
 ### Options
 
     --help                    Show help and usage information
-    -h, --host=<host>         The hostname/address to expose server on [default: localhost]
-    -p, --port=<port>         The port number used for the server [default: 5795]
-    -c, --comport=<comport>   The com port [default: /dev/ttyUSB0]
-    -b, --baudrate=<baudrate> The baudrate to use with the com port [default: 9600]
-    -t, --timeout=<timeout>   The connection timeout to use for com port (in seconds) [default: 1]
+    -h, --host <host>         The hostname/address to expose server on [default: localhost]
+    -p, --port <port>         The port number used for the server [default: 5795]
+    -c, --comport <comport>   The com port [default: /dev/ttyUSB0]
+    -b, --baudrate <baudrate> The baudrate to use with the com port [default: 9600]
+    -t, --timeout <timeout>   The connection timeout to use for com port (in seconds) [default: 1]
 
 
 ## CLI client
@@ -39,11 +39,11 @@ Used to communicate with the daemon through TCP IPC.
 
     --help                         Show help and usage information
     -l, --list                     List acceptable values for color, brightness and mode
-    -c, --color=<color>            Set color to given value (must be one of the predefined colors)
-    -b, --brightness=<brightness>  Set brightness to given value
-    -m, --mode=<mode>              Set mode to given value (must be on of the predefined modes)
-    -h, --host=<host>              The hostname/address of the server [default: localhost]
-    -p, --port=<port>              The port number used to connect to the server [default: 5795]
+    -c, --color <color>            Set color to given value (must be one of the predefined colors)
+    -b, --brightness <brightness>  Set brightness to given value
+    -m, --mode <mode>              Set mode to given value (must be on of the predefined modes)
+    -h, --host <host>              The hostname/address of the server [default: localhost]
+    -p, --port <port>              The port number used to connect to the server [default: 5795]
 
 
 ## Acknowledgements
