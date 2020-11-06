@@ -1,5 +1,9 @@
 # DSUL - Disturb State USB Light
 
+[![Build Status](https://travis-ci.org/hymnis/dsul-python.svg?branch=master)](https://travis-ci.org/hymnis/dsul-python)
+[![Maintainability](https://api.codeclimate.com/v1/badges/0a360f196a019278c3eb/maintainability)](https://codeclimate.com/github/hymnis/dsul-python/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/0a360f196a019278c3eb/test_coverage)](https://codeclimate.com/github/hymnis/dsul-python/test_coverage)
+
 The goal of the project is to have a USB connected light, that can be be set to different colors, with adjustable brightness and different modes, which can communicate the users current preference regarding being disturbed.
 
 This implementation used Python 3.x for both daemon/server and client. It should work on most platforms as it uses as few and standard libraries as possible.
@@ -48,4 +52,5 @@ Used to communicate with the daemon through TCP IPC.
 
 ## Acknowledgements
 
-IPC module is based on the work of Dan Krause. Check it out at: [https://gist.github.com/dankrause/9607475](https://gist.github.com/dankrause/9607475)
+- `ipc` module is based on the work of Dan Krause. Check it out at: [https://gist.github.com/dankrause/9607475](https://gist.github.com/dankrause/9607475)
+- `mockserial` module is based on the work of D. Thiebaut. Check it out at: [http://www.science.smith.edu/dftwiki/index.php/PySerial_Simulator](http://www.science.smith.edu/dftwiki/index.php/PySerial_Simulator)

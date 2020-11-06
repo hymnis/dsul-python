@@ -1,5 +1,7 @@
 .venv
+.pytest_cache
 result.html
 result.json
 *.pyc
 __pycache__
+*.log
