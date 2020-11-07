@@ -57,12 +57,15 @@ check_everything() {
     fi
 }
 
-
-MATCH='TODO'
+old_ifs=$IFS
+IFS=,
+MATCH='# TODO,# Todo,# todo,# DEBUG,# Debug,# debug'
 
 for file in "$@"; do
     for match_pattern in $MATCH; do
         check_file $file $match_pattern
     done
 done
+
+IFS=$old_ifs
 exit

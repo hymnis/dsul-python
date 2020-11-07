@@ -77,6 +77,11 @@ Tests are located in the _tests_ directory. They should be named according to fo
 
 To run all tests, use the `unittest` module like so: `python -m unittest` or if you only want to test a specific module: `python -m unittest tests.test_<module name>`.
 
+### pre-commit
+Current configuration will lint and format python code, as well as check files for strings (like "TODO") and missed git merge markings.
+Look in `.pre-commig-config.yaml` for exact order of tasks and their settings.
+
+
 ## Acknowledgements
 
 - `ipc` module is based on the work of Dan Krause.  
