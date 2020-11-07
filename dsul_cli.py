@@ -6,7 +6,7 @@ import getopt
 import logging
 import re
 import sys
-from typing import Dict, List, Union
+from typing import Dict, List, Union, no_type_check
 
 import ipc
 
@@ -19,6 +19,7 @@ class DsulCli:
     modes: List[str] = []
     ipc: Dict[str, Union[int, str]] = {}
 
+    @no_type_check
     def __init__(self, argv) -> None:
         """Initialize the class."""
         print("[] DSUL CLI")
@@ -31,23 +32,19 @@ class DsulCli:
             format=logformat,
             datefmt="%H:%M:%S",
         )
-        # fmt: off
-        logpath = (
-            logging.getLoggerClass().
-            root.handlers[0].baseFilename)  # type: ignore
-        # fmt: on
+        logpath = logging.getLoggerClass().root.handlers[0].baseFilename
         print(f"Log file at: {logpath}")
 
         self.get_settings()
         self.read_argument(argv)
 
-    def __missing__(self, key):
+    def __missing__(self, key) -> str:
         """Log and return missing key information."""
         message = f"{key} not present in the dictionary!"
         logging.warning(message)
         return message
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string value representing the object."""
         message = "DsuCli"
         return message
@@ -87,7 +84,7 @@ class DsulCli:
         self.colors["orange"] = config.get("Colors", "orange").split(",")
         self.colors["black"] = config.get("Colors", "black").split(",")
 
-    def read_argument(self, argv):
+    def read_argument(self, argv) -> None:
         """Parse command line arguments."""
         ready = False
         help_string = (
@@ -168,7 +165,7 @@ class DsulCli:
             logging.error("Connection was refused")
             sys.exit(2)
 
-    def handle_response(self, response):
+    def handle_response(self, response) -> None:
         """Handle the reponse from daemon."""
         response = response[0].text[0]
 
@@ -201,7 +198,7 @@ class DsulCli:
 
             self.sequence_done = True
 
-    def list_information(self):
+    def list_information(self) -> None:
         """Print out all modes and colors."""
         print("[modes]")
         for mode in self.modes:

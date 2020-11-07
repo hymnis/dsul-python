@@ -8,10 +8,11 @@ import os
 import sys
 import threading
 import time
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union, no_type_check
+
+import serial  # type: ignore
 
 import ipc
-import serial  # type: ignore
 
 
 class DsulDaemon:
@@ -19,6 +20,7 @@ class DsulDaemon:
 
     read_command = True
     read_data = False
+    ser: Any = None
     send_commands: List[str] = []
     current_command = ""
     retries = 0
@@ -27,7 +29,8 @@ class DsulDaemon:
     serial: Dict[str, Union[int, str]] = {}
     ipc: Dict[str, Union[int, str]] = {}
 
-    def __init__(self, argv):
+    @no_type_check
+    def __init__(self, argv) -> None:
         """Initialize the class."""
         print("[] DSUL Daemon")
         logformat = (
@@ -49,13 +52,13 @@ class DsulDaemon:
         self.ser = serial.Serial()
         self.init_serial()
 
-    def __missing__(self, key):
+    def __missing__(self, key) -> str:
         """Log and return missing key information."""
         message = f"{key} not present in the dictionary!"
         logging.warning(message)
         return message
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the class."""
         message = (
             "DsulDaemon<>(debug=val, ser=val, serial_active=val, "
@@ -384,6 +387,5 @@ class DsulDaemon:
 
 
 if __name__ == "__main__":
-    print(f"sys.argv: {sys.argv[1:]}")
     APP = DsulDaemon(sys.argv[1:])
     APP.run()
