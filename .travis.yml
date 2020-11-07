@@ -17,7 +17,7 @@ before_script:
 script:
 - flake8 dsul_*.py
 - mypy dsul_*.py
-- python -m unittest tests.test_dsul_daemon
+- python -m unittest
 - echo "Done"
 after_script:
   - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
