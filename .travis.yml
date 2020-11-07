@@ -1,0 +1,23 @@
+env:
+  global:
+    - CC_TEST_REPORTER_ID=1c104053bc2f9addd05159a78da700015ff8e6ea3f85bd613745ace98914e890
+language: python
+python:
+- 3.6
+- 3.7
+- 3.8
+install:
+- pip install -r requirements.cli.txt
+- pip install -r requirements.daemon.txt
+- pip install -r requirements.development.txt
+before_script:
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
+script:
+- flake8 dsul_*.py
+- mypy dsul_*.py
+- python -m unittest
+- echo "Done"
+after_script:
+  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
