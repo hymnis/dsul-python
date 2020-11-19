@@ -5,3 +5,6 @@ result.json
 *.pyc
 __pycache__
 *.log
+build/
+dist/
+dsul.egg-info/

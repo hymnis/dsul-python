@@ -15,10 +15,10 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import socketserver
-import socket
-import struct
 import json
+import socket
+import socketserver
+import struct
 
 
 class IPCError(Exception):
@@ -62,7 +62,7 @@ def _read_objects(sock):
 
     if not header:
         raise ConnectionClosed()
-    size = struct.unpack('!i', header)[0]
+    size = struct.unpack("!i", header)[0]
     data = sock.recv(size - 4)
 
     if not data:
@@ -73,7 +73,7 @@ def _read_objects(sock):
 
 def _write_objects(sock, objects):
     data = json.dumps([o.serialize() for o in objects])
-    sock.sendall(struct.pack('!i', len(data) + 4))
+    sock.sendall(struct.pack("!i", len(data) + 4))
     sock.sendall(data.encode())
 
 
@@ -87,7 +87,7 @@ def _recursive_subclasses(cls):
     return classmap
 
 
-class Message():
+class Message:
     """IPC message class."""
 
     @classmethod
@@ -102,7 +102,8 @@ class Message():
             else:
                 try:
                     serialized.append(
-                        classmap[obj['class']](obj['args'], **obj['kwargs']))
+                        classmap[obj["class"]](obj["args"], **obj["kwargs"])
+                    )
                 except KeyError as err:
                     raise UnknownMessage(err)
                 except TypeError as err:
@@ -113,7 +114,7 @@ class Message():
     def serialize(self):
         """Serialize object."""
         args, kwargs = self._get_args()
-        return {'class': type(self).__name__, 'args': args, 'kwargs': kwargs}
+        return {"class": type(self).__name__, "args": args, "kwargs": kwargs}
 
     @staticmethod
     def _get_args():
@@ -123,12 +124,13 @@ class Message():
     def __repr__(self):
         """Return name and args."""
         rep_r = self.serialize()
-        args = ', '.join([repr(arg) for arg in rep_r['args']])
-        kwargs = ''.join(
-            [', {}={}'.format(k, repr(v)) for k, v in rep_r['kwargs'].items()])
-        name = rep_r['class']
+        args = ", ".join([repr(arg) for arg in rep_r["args"]])
+        kwargs = "".join(
+            [", {}={}".format(k, repr(v)) for k, v in rep_r["kwargs"].items()]
+        )
+        name = rep_r["class"]
 
-        return '{}({}{})'.format(name, args, kwargs)
+        return "{}({}{})".format(name, args, kwargs)
 
 
 class Response(Message):
@@ -154,7 +156,7 @@ class Event(Message):
         return [self.type], self.properties
 
 
-class Client():
+class Client:
     """IPC client class."""
 
     def __init__(self, address):
@@ -189,13 +191,15 @@ class Client():
         return _read_objects(self.sock)
 
 
-class Server():
+class Server:
     """IPC server class."""
 
     def __init__(self, address, callback, bind_and_activate=True):
         """Initialize the server."""
         if not callable(callback):
-            def callback(x): return []  # pylint: disable=E0102,C0111,C0321
+
+            def callback(x):
+                return []  # pylint: disable=E0102,C0111,C0321
 
         class IPCHandler(socketserver.BaseRequestHandler):
             """Handler for IPC connections."""
@@ -211,6 +215,6 @@ class Server():
         with socketserver.TCPServer(
             server_address=address,
             RequestHandlerClass=IPCHandler,
-            bind_and_activate=bind_and_activate
+            bind_and_activate=bind_and_activate,
         ) as server_instance:
             server_instance.serve_forever()

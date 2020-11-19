@@ -15,8 +15,8 @@ before_script:
   - chmod +x ./cc-test-reporter
   - ./cc-test-reporter before-build
 script:
-- flake8 dsul_*.py
-- mypy dsul_*.py
+- flake8 dsul/*.py
+- mypy dsul
 - python -m unittest
 - echo "Done"
 after_script:

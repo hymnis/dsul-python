@@ -70,15 +70,18 @@ This is the basic flow for development on the project. Step 1-2 should only have
 0. Push changes
 
 ### Requirements
-As this repo uses [pre-commit](https://pre-commit.com/) that does linting and formatting (of python code), we don't have to do that manually but the the tools are still added as requirements (in `requirements.development.txt`) so that linting etc. can be done manually or by IDE if so desired. [pre-commit](https://pre-commit.com/) is also one of the requirements and must be installed prior to commit, for it to work.
+As this repo uses [pre-commit](https://pre-commit.com/) that does linting and format checking, requirements in `requirements.development.txt`). [pre-commit](https://pre-commit.com/) is also one of the requirements and must be installed prior to commit, for it to work.
 
 ### Testing
 Tests are located in the _tests_ directory. They should be named according to format: `test_<module name>.py`
 
 To run all tests, use the `unittest` module like so: `python -m unittest` or if you only want to test a specific module: `python -m unittest tests.test_<module name>`.
 
+### Formatting
+All python code should be formated by black. If it's not it will be caught by the pre-commit hook.
+
 ### pre-commit
-Current configuration will lint and format python code, as well as check files for strings (like "TODO") and missed git merge markings.
+Current configuration will lint and format check, mostly python, code, as well as check files for strings (like "TODO") and missed git merge markings.
 Look in `.pre-commig-config.yaml` for exact order of tasks and their settings.
 
 

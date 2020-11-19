@@ -30,7 +30,7 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 with patch("builtins.__import__", side_effect=import_serial):
-    import dsul_daemon as dd
+    import dsul.daemon as dd
 
 
 def port_open(host: str, port: int) -> bool:
@@ -59,8 +59,8 @@ class DsulDaemonTest(unittest.TestCase):
 
     def test_ipc_started(self):
         """Test IPC server started."""
-        self.dd.ipc["host"] = self.ipc_host
-        self.dd.ipc["port"] = self.ipc_port
+        self.dd.settings["ipc"]["host"] = self.ipc_host
+        self.dd.settings["ipc"]["port"] = self.ipc_port
         self.dd.ipc_active = True
 
         # Start IPC server in different process

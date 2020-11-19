@@ -19,13 +19,13 @@ repos:
     rev: v0.790
     hooks:
       - id: mypy
+        args: [--no-strict-optional, --ignore-missing-imports, --namespace-packages]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.3.0
     hooks:
       - id: check-merge-conflict
       - id: check-toml
       - id: mixed-line-ending
-        fix: no
   - repo: local
     hooks:
       - id: check-strings
