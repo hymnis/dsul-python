@@ -19,6 +19,9 @@ class DsulCli:
     ipc: Dict[str, Union[int, str]] = {}
     command_queue: List[Dict[str, str]] = []
     waiting_for_reply: bool = False
+    current_color = "n/a"
+    current_mode = "n/a"
+    current_brightness = "n/a"
 
     @no_type_check
     def __init__(self, argv) -> None:
@@ -62,8 +65,12 @@ class DsulCli:
     def read_argument(self, argv) -> None:  # noqa
         """Parse command line arguments."""
         ready = {}
+        color = ""
+        mode = ""
+        brightness = ""
+        index = 0
         help_string = (
-            "dsul-cli --help -l -c <color> -m <mode> "
+            "dsul-cli --help -l -c <color> -i <index> -m <mode> "
             "-b <brightness> -h <host> -p <port> --version"
         )
         version_string = f"Version {VERSION}"
@@ -71,13 +78,14 @@ class DsulCli:
         try:
             opts, args = getopt.getopt(  # pylint: disable=W0612
                 argv,
-                "lh:p:c:m:b:",
+                "lh:p:c:i:m:b:",
                 [
                     "help",
                     "list",
-                    "host",
-                    "port",
+                    "host=",
+                    "port=",
                     "color=",
+                    "index=",
                     "mode=",
                     "brightness=",
                     "version",
@@ -92,17 +100,31 @@ class DsulCli:
                 print(help_string)
                 sys.exit()
             elif opt in ("-l", "--list"):
+                try:
+                    self.requst_server_information()
+                    self.perform_actions()
+                except Exception:
+                    pass
                 self.list_information()
                 sys.exit()
             elif opt in ("-c", "--color"):
+                color = arg
                 ready["color"] = True
-                self.set_color(arg)
+            elif opt in ("-i", "--index"):
+                if int(arg) <= self.settings["leds"]:
+                    index = int(arg)
+                else:
+                    logging.error(
+                        "Specified LED index is outside supported range (%s)"
+                        % arg
+                    )
+                    sys.exit(1)
             elif opt in ("-b", "--brightness"):
-                ready["brigtness"] = True
-                self.set_brightness(arg)
+                brightness = arg
+                ready["brightness"] = True
             elif opt in ("-m", "--mode"):
+                mode = arg
                 ready["mode"] = True
-                self.set_mode(arg)
             elif opt in ("-p", "--port"):
                 self.settings["ipc"]["port"] = arg
             elif opt in ("-h", "--host"):
@@ -111,9 +133,17 @@ class DsulCli:
                 print(version_string)
                 sys.exit()
 
-        if False in ready.values():
+        if True not in ready.values():
             logging.error("Missing commands and/or arguments")
             sys.exit(1)
+        else:
+            for key in ready.keys():
+                if key == "color":
+                    self.set_color(color, index)
+                if key == "brightness":
+                    self.set_brightness(brightness)
+                if key == "mode":
+                    self.set_mode(mode)
 
     def set_color(self, color, index=0) -> None:
         """Send command to set color."""
@@ -191,13 +221,13 @@ class DsulCli:
             self.handle_response(response)
         except KeyError:
             logging.error("IPC: Key error")
-            sys.exit(1)
+            # sys.exit(1)
         except ipc.UnknownMessage:
             logging.error("IPC: Unknown message")
-            sys.exit(1)
+            # sys.exit(1)
         except ipc.ConnectionRefused:
             logging.error("IPC: Connection was refused")
-            sys.exit(2)
+            # sys.exit(2)
 
     def handle_response(self, response) -> None:
         """Handle the reponse from daemon."""
@@ -228,28 +258,44 @@ class DsulCli:
                 argument = argument.strip()
 
                 logging.info(
-                    "Command sent. " f"Setting {command} to {argument}"
+                    "Command sent. Setting %s to %s", command, argument
                 )
                 self.ipc_send("request", "status", command)
                 self.waiting_for_reply = True
 
             self.sequence_done = True
 
-    def parse_response_value(self, value: str):
+    def parse_response_value(self, value: str):  # noqa
         """Parse the response value."""
         if self.waiting_for_reply:
-            response = value.split(";")
             self.waiting_for_reply = False
-            if "version" in response:
-                print("got server information")
-                for setting in response:
-                    print(f"setting: {setting}")
+
+            for item in value.split(";"):
+                try:
+                    key, val = item.split("=")
+
+                    if key == "modes":
+                        self.settings["modes"] = eval(val)
+                    elif key == "current_color":
+                        self.current_color = val
+                    elif key == "current_mode":
+                        self.current_mode = val
+                    elif key == "current_brightness":
+                        self.current_brightness = val
+                    elif key == "brightness_min":
+                        self.settings["brightness_min"] = int(val)
+                    elif key == "brightness_max":
+                        self.settings["brightness_max"] = int(val)
+                    elif key == "leds":
+                        self.settings["leds"] = int(val)
+                except ValueError:
+                    pass
 
     def requst_server_information(self) -> None:
         """Request information from server; settings, limits etc."""
-        self.ipc_send("request", "information", "all")
         self.sequence_done = False
         self.waiting_for_reply = True
+        self.ipc_send("request", "information", "all")
 
     def list_information(self) -> None:
         """Print out all modes and colors."""
@@ -261,9 +307,14 @@ class DsulCli:
         for color in self.settings["colors"]:
             print(f"- {color}")
 
-        print("\n[brigtness]")
+        print("\n[brightness]")
         print(f"- min = {self.settings['brightness_min']}")
         print(f"- max = {self.settings['brightness_max']}")
+
+        print("\n[current]")
+        print(f"- color = {self.current_color}")
+        print(f"- mode = {self.current_mode}")
+        print(f"- brightness = {self.current_brightness}")
 
 
 if __name__ == "__main__":

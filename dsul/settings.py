@@ -18,7 +18,7 @@ def get_settings(settings_type: str) -> Dict[str, Any]:
     settings: Dict[str, Any] = {
         "ipc": {},
         "serial": {},
-        "modes": "",
+        "modes": {},
         "leds": 0,
         "brightness_min": 0,
         "brightness_max": 0,
@@ -27,9 +27,9 @@ def get_settings(settings_type: str) -> Dict[str, Any]:
 
     settings["ipc"]["host"] = config.get("IPC", "host", fallback="localhost")
     settings["ipc"]["port"] = config.getint("IPC", "port", fallback=5795)
-    settings["modes"] = config.get(
-        "Modes", "types", fallback="solid,blink"
-    ).split(",")
+    settings["modes"]["solid"] = config.getint("Modes", "solid", fallback=1)
+    settings["modes"]["blink"] = config.getint("Modes", "blink", fallback=2)
+    settings["modes"]["flash"] = config.getint("Modes", "flash", fallback=3)
     settings["brightness_min"] = config.getint("Brightness", "min", fallback=0)
     settings["brightness_max"] = config.getint(
         "Brightness", "max", fallback=150

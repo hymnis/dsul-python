@@ -3,6 +3,7 @@
 
 import getopt
 import logging
+import re
 import sys
 import threading
 import time
@@ -32,9 +33,10 @@ sys.excepthook = exception_handler
 class DsulDaemon:
     """DSUL Daemon application class."""
 
+    device: Dict[str, Any] = {}
     ser: Any = None
     send_commands: List[Dict[str, object]] = []
-    current_mode = ""
+    current_mode = 0
     current_color = ""
     current_brightness = ""
 
@@ -83,10 +85,12 @@ class DsulDaemon:
         message = (
             "DsulDaemon<>(debug=val, ser=val, serial_active=val, "
             "serial_verified=val, ipc_active=val, pinger_active=val"
-            "send_commands=val, "
+            "send_commands=val, device=val, "
             "current_mode=val, current_color=val, current_brightness=val)"
         )
         return message
+
+    # SETTING #
 
     def read_arguments(self, argv) -> None:
         """Parse command line arguments."""
@@ -123,6 +127,29 @@ class DsulDaemon:
                 print(version_string)
                 sys.exit()
 
+    def update_settings(self) -> None:
+        """Update setttings if needed."""
+        if self.settings["brightness_min"] != int(
+            self.device["brightness_min"]
+        ):
+            self.settings["brightness_min"] = int(
+                self.device["brightness_min"]
+            )
+        if self.settings["brightness_max"] != int(
+            self.device["brightness_max"]
+        ):
+            self.settings["brightness_max"] = int(
+                self.device["brightness_max"]
+            )
+        if self.settings["leds"] != int(self.device["leds"]):
+            self.settings["leds"] = int(self.device["leds"])
+        if self.current_color != self.device["current_color"][0]:
+            self.current_color = self.device["current_color"][0]
+        if self.current_brightness != self.device["current_brightness"]:
+            self.current_brightness = self.device["current_brightness"]
+        if self.current_mode != int(self.device["current_mode"]):
+            self.current_mode = int(self.device["current_mode"])
+
     def run(self) -> None:
         """Run the main loop of the application."""
         try:
@@ -135,6 +162,8 @@ class DsulDaemon:
                 target=self.pinger_process, daemon=True
             )
             pinger_thread.start()
+
+            self.send_information_request()
 
             while ipc_thread.is_alive():
                 self.process_commands()
@@ -151,6 +180,8 @@ class DsulDaemon:
             self.pinger_active = False
             self.deinit_serial()
             sys.exit()
+
+    # THREAD PROCESSES #
 
     def ipc_process(self) -> None:
         """Handle IPC communication."""
@@ -181,6 +212,8 @@ class DsulDaemon:
                 time.sleep(60.0 - ((time.time() - starttime) % 60.0))
 
         logging.info("Pinger stopped")
+
+    # SERIAL #
 
     def init_serial(self) -> None:
         """Initilize serial communication."""
@@ -285,25 +318,128 @@ class DsulDaemon:
                 self.serial_verified = True
             elif read_data:
                 logging.debug("serial data received")
-                # TODO: eh.. process it?
+
+                v_match = re.search(
+                    r"v(\d{3})\.(\d{3}).(\d{3})", str(input_data)
+                )
+                ll_match = re.search(r"ll(\d{3})", str(input_data))
+                lb_match = re.search(r"lb(\d{3}):(\d{3})", str(input_data))
+                cc_match = re.findall(r"cc(\d{3}):(\d*)", str(input_data))
+                cb_match = re.search(r"cb(\d{3})", str(input_data))
+                cm_match = re.search(r"cm(\d{3})", str(input_data))
+
+                self.device["version"] = (
+                    f"{int(v_match[1])}."
+                    f"{int(v_match[2])}."
+                    f"{int(v_match[3])}"
+                )
+                self.device["leds"] = int(ll_match[1])
+                self.device["brightness_min"] = int(lb_match[1])
+                self.device["brightness_max"] = int(lb_match[2])
+                self.device["current_color"] = {}
+                for cc in cc_match:
+                    self.device["current_color"][int(cc[0])] = int(
+                        cc[1].strip() or 0
+                    )
+                self.device["current_brightness"] = int(cb_match[1])
+                self.device["current_mode"] = int(cm_match[1])
+
+                self.update_settings()
+
+    # COMMAND HANDLING #
+
+    def process_commands(self) -> None:
+        """Process the command queue."""
+        retries = 0
+        queue_count = len(self.send_commands)
+
+        while queue_count > 0:
+            command_item = self.send_commands.pop(0)
+            queue_count -= 1
+            self.init_serial()  # make sure serial connection is setup
+
+            if self.serial_active:
+                logging.debug(f"S> : {command_item['command']}")
+
+                try:
+                    while not self.write_serial(str(command_item["command"])):
+                        retries += 1
+
+                        if retries >= 5:
+                            retries = 0
+                            raise Exception("Could not send serial command.")
+
+                        time.sleep(1)
+
+                    if command_item["want_reply"]:
+                        self.get_serial_data()
+                except Exception:
+                    logging.error("Sending serial command failed.")
+                    logging.debug(
+                        f"Failed serial command: {command_item['command']}"
+                    )
+                    sys.exit(1)
+            else:
+                logging.error(
+                    "Serial connection not active. Can't send commands."
+                )
+
+    def process_server_request(self, objects: Any) -> List:
+        """Handle request sent to the IPC server."""
+        logging.debug(f"<I : {objects}")
+
+        if self.serial_verified:
+            for message_object in objects:
+                if message_object.type[0] == "command":
+                    action = "ACK"
+
+                    if message_object.properties["key"] == "color":
+                        valid = self.send_color_command(
+                            message_object.properties["value"]
+                        )
+                    elif message_object.properties["key"] == "brightness":
+                        valid = self.send_brightness_command(
+                            message_object.properties["value"]
+                        )
+                    elif message_object.properties["key"] == "mode":
+                        valid = self.send_mode_command(
+                            message_object.properties["value"]
+                        )
+
+                    message = (
+                        f"{message_object.properties['key']}="
+                        f"{message_object.properties['value']}"
+                    )
+
+                    if not valid:
+                        message = "Invalid command/argument"
+
+                elif message_object.type[0] == "request":
+                    result = self.get_request_results(message_object)
+                    action = result["action"]
+                    message = result["message"]
+                else:
+                    action = "ACK"
+                    message = "Unknown event type"
+
+            response = [ipc.Response(f"{action}, {message}")]
+        else:
+            response = [ipc.Response("ACK, No serial connection")]
+
+        logging.debug(f"I> : {response}")
+
+        return response
 
     def set_current_states(self) -> None:
         """Set current states, if any."""
         if self.current_mode:
-            self.queue_command("mode", self.current_mode)
+            self.send_mode_command(str(self.current_mode))
         elif self.current_color:
-            self.queue_command("color", self.current_color)
+            self.send_color_command(self.current_color)
         elif self.current_brightness:
-            self.queue_command("brightness", self.current_brightness)
+            self.send_brightness_command(self.current_brightness)
 
-    def queue_command(self, key, value: str):
-        """Add command to the queue."""
-        if key == "color":
-            return self.send_color_command(value)
-        elif key == "brightness":
-            return self.send_brightness_command(value)
-        elif key == "mode":
-            return self.send_mode_command(value)
+    # SEND ACTIONS #
 
     def send_color_command(self, value: str) -> bool:
         """Send command to set color."""
@@ -348,17 +484,13 @@ class DsulDaemon:
         """Send command to set the mode."""
         if value in self.settings["modes"]:
             logging.info(f'Setting mode: "{value}"')
-            self.current_mode = value
-
-            if value == "solid":
-                mode_value = 1
-            elif value == "blink":
-                mode_value = 2
-            elif value == "flash":
-                mode_value = 3
+            self.current_mode = int(self.settings["modes"][value])
 
             self.send_commands.append(
-                {"command": f"+m{mode_value}#", "want_reply": True}
+                {
+                    "command": "+m{:03d}#".format(self.current_mode),
+                    "want_reply": True,
+                }
             )
 
             return True
@@ -366,6 +498,10 @@ class DsulDaemon:
             logging.warning(f'Invalid argument: "{value}"')
 
         return False
+
+    def send_information_request(self) -> None:
+        """Send request to device for information."""
+        self.send_commands.append({"command": "-!#", "want_reply": True})
 
     def send_ping(self) -> None:
         """Send ping to device."""
@@ -377,40 +513,7 @@ class DsulDaemon:
         logging.info("Sending OK to device")
         self.send_commands.append({"command": "+!#", "want_reply": False})
 
-    def process_commands(self) -> None:
-        """Process the command queue."""
-        retries = 0
-        queue_count = len(self.send_commands)
-
-        while queue_count > 0:
-            command_item = self.send_commands.pop(0)
-            queue_count -= 1
-            self.init_serial()  # make sure serial connection is setup
-
-            if self.serial_active:
-                logging.debug(f"S> : {command_item['command']}")
-
-                try:
-                    while not self.write_serial(str(command_item["command"])):
-                        retries += 1
-
-                        if retries >= 5:
-                            retries = 0
-                            raise Exception("Could not send serial command.")
-
-                        time.sleep(1)
-
-                    if command_item["want_reply"]:
-                        self.get_serial_data()
-                except Exception:
-                    logging.error("Sending serial command failed (5 retries).")
-                    logging.debug(
-                        f"Failed serial command: {command_item['command']}"
-                    )
-            else:
-                logging.error(
-                    "Serial connection not active. Can't send commands."
-                )
+    # GET ACTIONS #
 
     def get_request_results(self, message_object: Any) -> Dict[str, str]:
         """Return results after request handling."""
@@ -424,17 +527,18 @@ class DsulDaemon:
             elif message_object.properties["value"] == "brightness":
                 message = self.current_brightness
             elif message_object.properties["value"] == "mode":
-                message = self.current_mode
+                message = str(self.current_mode)
         elif message_object.properties["key"] == "information":
             action = "OK"
-            message = self.get_information()
+            message = self.give_information()
 
         return {"action": action, "message": message}
 
-    def get_information(self) -> str:
-        """Get server information to the client."""
+    def give_information(self) -> str:
+        """Give server information to the client."""
         return (
-            f"version={VERSION};"
+            f"daemon={VERSION};"
+            f"fw={self.device['version']};"
             f"modes={self.settings['modes']};"
             f"leds={self.settings['leds']};"
             f"brightness_min={self.settings['brightness_min']};"
@@ -443,42 +547,6 @@ class DsulDaemon:
             f"current_brightness={self.current_brightness};"
             f"current_color={self.current_color};"
         )
-
-    def process_server_request(self, objects: Any) -> List:
-        """Handle request sent to the IPC server."""
-        logging.debug(f"<I : {objects}")
-
-        if self.serial_verified:
-            for message_object in objects:
-                if message_object.type[0] == "command":
-                    action = "ACK"
-                    valid = self.queue_command(
-                        message_object.properties["key"],
-                        message_object.properties["value"],
-                    )
-                    message = (
-                        f"{message_object.properties['key']}="
-                        f"{message_object.properties['value']}"
-                    )
-
-                    if not valid:
-                        message = "Invalid command/argument"
-
-                elif message_object.type[0] == "request":
-                    result = self.get_request_results(message_object)
-                    action = result["action"]
-                    message = result["message"]
-                else:
-                    action = "ACK"
-                    message = "Unknown event type"
-
-            response = [ipc.Response(f"{action}, {message}")]
-        else:
-            response = [ipc.Response("ACK, No serial connection")]
-
-        logging.debug(f"I> : {response}")
-
-        return response
 
 
 if __name__ == "__main__":
