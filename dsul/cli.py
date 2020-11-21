@@ -137,9 +137,14 @@ class DsulCli:
             int(brightness) >= self.settings["brightness_min"]
             and int(brightness) <= self.settings["brightness_max"]
         ):
+            command_value = f"{brightness}"
             self.sequence_done = False
             self.command_queue.append(
-                {"type": "command", "key": "brightness", "value": brightness}
+                {
+                    "type": "command",
+                    "key": "brightness",
+                    "value": command_value,
+                }
             )
         else:
             logging.error(
@@ -234,7 +239,6 @@ class DsulCli:
         """Parse the response value."""
         if self.waiting_for_reply:
             response = value.split(";")
-            print(f"response: {response}")  # DEBUG
             self.waiting_for_reply = False
             if "version" in response:
                 print("got server information")

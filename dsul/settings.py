@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 
-def get_settings(type: str) -> Dict[str, Any]:
+def get_settings(settings_type: str) -> Dict[str, Any]:
     """Get settings from config file."""
     home = str(Path.home())
     config_file = Path(home) / ".dsul.cfg"
@@ -36,7 +36,7 @@ def get_settings(type: str) -> Dict[str, Any]:
     )
     settings["leds"] = config.getint("Leds", "number", fallback=1)
 
-    if type == "daemon":
+    if settings_type == "daemon":
         settings["serial"]["port"] = config.get(
             "Serial", "port", fallback="/dev/ttyUSB0"
         )
@@ -46,7 +46,7 @@ def get_settings(type: str) -> Dict[str, Any]:
         settings["serial"]["timeout"] = config.getint(
             "Serial", "timeout", fallback=None
         )
-    elif type == "cli":
+    elif settings_type == "cli":
         settings["colors"]["red"] = config.get(
             "Colors", "red", fallback="255,0,0"
         ).split(",")

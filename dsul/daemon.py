@@ -32,15 +32,11 @@ sys.excepthook = exception_handler
 class DsulDaemon:
     """DSUL Daemon application class."""
 
-    read_command = True
-    read_data = False
     ser: Any = None
-    send_commands: List[str] = []
-    current_command = ""
+    send_commands: List[Dict[str, object]] = []
     current_mode = ""
     current_color = ""
     current_brightness = ""
-    retries = 0
 
     @no_type_check
     def __init__(self, argv) -> None:
@@ -86,10 +82,9 @@ class DsulDaemon:
         """Return a string representation of the class."""
         message = (
             "DsulDaemon<>(debug=val, ser=val, serial_active=val, "
-            "serial_verified=val, serial_wait=val, ipc_active=val, "
-            "read_command=val, read_data=val, send_commands=val, "
-            "current_command=val, retries=val, colors=val, mode=val, "
-            "serial=val, ipc=val)"
+            "serial_verified=val, ipc_active=val, pinger_active=val"
+            "send_commands=val, "
+            "current_mode=val, current_color=val, current_brightness=val)"
         )
         return message
 
@@ -143,7 +138,7 @@ class DsulDaemon:
 
             while ipc_thread.is_alive():
                 self.process_commands()
-                time.sleep(1)  # TODO: find better way of handling this
+                time.sleep(0.5)  # NOTE: find better way of handling this
 
             ipc_thread.join()
             pinger_thread.join()
@@ -180,9 +175,11 @@ class DsulDaemon:
 
         while self.pinger_active and self.serial_active:
             starttime = time.time()
+
             while True:
                 self.send_ping()
                 time.sleep(60.0 - ((time.time() - starttime) % 60.0))
+
         logging.info("Pinger stopped")
 
     def init_serial(self) -> None:
@@ -197,12 +194,9 @@ class DsulDaemon:
                 self.ser.baudrate = self.settings["serial"]["baudrate"]
                 self.ser.timeout = self.settings["serial"]["timeout"]
                 self.ser.open()
-                self.ser.flushInput()
-                self.ser.flushOutput()
                 self.serial_active = True
                 self.serial_verified = False
-                time.sleep(3)  # wait until device is out of boot state
-                self.send_ping()
+                time.sleep(2)  # wait until device is out of boot state
                 self.set_current_states()
         except serial.serialutil.SerialException:
             logging.error(
@@ -230,42 +224,52 @@ class DsulDaemon:
     def read_serial(self) -> Union[str, bool]:
         """Read data from serial connection."""
         try:
-            if self.read_command:
-                read_length = 3
-            elif self.read_data:
-                read_length = 10
-            incoming = self.ser.read(read_length)
-            if incoming != b"":
-                incoming = incoming.decode()
-            else:
-                incoming = False
-        except serial.serialutil.SerialException:
-            incoming = False
+            incoming = bytearray()
 
-        return incoming
+            while True:
+                i = max(1, min(2048, self.ser.in_waiting))
+                data = self.ser.read(i)
+                i = data.find(b"#")
+
+                if i >= 0:
+                    # fmt: off
+                    r = incoming + data[:i + 1]
+                    incoming[0:] = data[i + 1:]
+                    # fmt: on
+                    return str(r.decode())
+                else:
+                    incoming.extend(data)
+        except serial.serialutil.SerialException:
+            return False
 
     def write_serial(self, message: str) -> bool:
         """Write data to the serial connection."""
         try:
             self.ser.write(message.encode())
-            self.ser.flush()
             return True
         except serial.serialutil.SerialException:
             return False
 
     def get_serial_data(self) -> None:
         """Get serial data and process the input."""
-        while self.serial_wait:
-            in_data = self.read_serial()
-            if in_data is not None:
-                self.handle_serial_input(in_data)
+        in_data = self.read_serial()
+
+        if in_data is not None:
+            self.handle_serial_input(in_data)
 
     def handle_serial_input(self, input_data: Union[str, bool]) -> None:
         """Handle serial commands and input data."""
         if input_data:
-            logging.debug(f"<S: {input_data}")
+            logging.debug(f"<S : {input_data}")
 
-            if self.read_command:
+            if len(input_data) == 3:  # type: ignore
+                read_command = True
+                read_data = False
+            else:
+                read_command = False
+                read_data = True
+
+            if read_command:
                 logging.debug("serial command received")
 
                 if input_data == "-!#":  # resend/request data
@@ -279,9 +283,9 @@ class DsulDaemon:
                     logging.info("Serial Response: Unknown/Error")
 
                 self.serial_verified = True
-                self.serial_wait = False
-            elif self.read_data:
+            elif read_data:
                 logging.debug("serial data received")
+                # TODO: eh.. process it?
 
     def set_current_states(self) -> None:
         """Set current states, if any."""
@@ -308,8 +312,12 @@ class DsulDaemon:
             logging.info(f'Setting color: "{r},{g},{b}" for "{index}"')
             self.current_color = value
             self.send_commands.append(
-                # TODO: add index to command once fw supports it
-                "+l{:03d}{:03d}{:03d}#".format(int(r), int(g), int(b))
+                {
+                    "command": "+l{:03d}{:03d}{:03d}{:03d}#".format(
+                        int(index), int(r), int(g), int(b)
+                    ),
+                    "want_reply": True,
+                }
             )
 
             return True
@@ -326,7 +334,9 @@ class DsulDaemon:
         ):
             logging.info(f'Setting brightness: "{value}"')
             self.current_brightness = value
-            self.send_commands.append("+b{:03d}#".format(int(value)))
+            self.send_commands.append(
+                {"command": "+b{:03d}#".format(int(value)), "want_reply": True}
+            )
 
             return True
         else:
@@ -347,7 +357,9 @@ class DsulDaemon:
             elif value == "flash":
                 mode_value = 3
 
-            self.send_commands.append(f"+m{mode_value}#")
+            self.send_commands.append(
+                {"command": f"+m{mode_value}#", "want_reply": True}
+            )
 
             return True
         else:
@@ -358,45 +370,47 @@ class DsulDaemon:
     def send_ping(self) -> None:
         """Send ping to device."""
         logging.info("Sending ping to device")
-        self.send_commands.append("-?#")
+        self.send_commands.append({"command": "-?#", "want_reply": True})
 
     def send_ok(self) -> None:
         """Send OK to device."""
         logging.info("Sending OK to device")
-        self.write_serial("+!#")
+        self.send_commands.append({"command": "+!#", "want_reply": False})
 
     def process_commands(self) -> None:
         """Process the command queue."""
-        if self.current_command != "":
+        retries = 0
+        queue_count = len(self.send_commands)
+
+        while queue_count > 0:
+            command_item = self.send_commands.pop(0)
+            queue_count -= 1
             self.init_serial()  # make sure serial connection is setup
 
             if self.serial_active:
-                logging.debug(f"S> : {self.current_command}")
+                logging.debug(f"S> : {command_item['command']}")
 
-                if not self.write_serial(self.current_command):
-                    self.retries += 1
-                else:
-                    self.current_command = ""
-                    self.serial_wait = True
+                try:
+                    while not self.write_serial(str(command_item["command"])):
+                        retries += 1
 
-                    # Wait for serial response
-                    self.get_serial_data()
+                        if retries >= 5:
+                            retries = 0
+                            raise Exception("Could not send serial command.")
 
-                if self.retries >= 5:
-                    logging.error("Sending serial command failed (5 retries)")
+                        time.sleep(1)
+
+                    if command_item["want_reply"]:
+                        self.get_serial_data()
+                except Exception:
+                    logging.error("Sending serial command failed (5 retries).")
                     logging.debug(
-                        f"Failed serial command: " f"{self.current_command}"
+                        f"Failed serial command: {command_item['command']}"
                     )
-                    self.retries = 0
-                    self.current_command = ""
             else:
                 logging.error(
-                    "Serial connection not active. " "Can't send commands."
+                    "Serial connection not active. Can't send commands."
                 )
-
-        # Add command(s) to queue
-        if self.send_commands != [] and self.current_command == "":
-            self.current_command = self.send_commands.pop()
 
     def get_request_results(self, message_object: Any) -> Dict[str, str]:
         """Return results after request handling."""

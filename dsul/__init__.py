@@ -7,4 +7,4 @@ try:
 except pkg_resources.DistributionNotFound:
     VERSION = "0.0.0"  # fallback if version can't be read
 
-DEBUG = True  # DEBUG
+DEBUG = False
