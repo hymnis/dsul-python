@@ -19,23 +19,23 @@ repos:
     rev: v0.790
     hooks:
       - id: mypy
+        args: [--no-strict-optional, --ignore-missing-imports, --namespace-packages]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.3.0
     hooks:
       - id: check-merge-conflict
       - id: check-toml
       - id: mixed-line-ending
-        fix: no
   - repo: local
     hooks:
       - id: check-strings
         name: check-strings
         language: script
-        entry: ./check-strings.sh
+        entry: ./scripts/check-strings.sh
         files: ''
         exclude: |
           (?x)^(
-            check-strings.sh|
+            scripts/check-strings.sh|
             README.md|
             LICENSE
           )$

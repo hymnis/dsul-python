@@ -1,3 +1,0 @@
-configparser==4.0.2
-pyserial==3.4
-PyYAML==5.3

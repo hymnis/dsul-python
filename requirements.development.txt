@@ -1,6 +1,17 @@
 black
 flake8
+pylint
 mypy
 isort
+coverage
+pytest
+pytest-cov
+pytest-cover
+pytest-coverage
 pylama>=7.6.6
 pre-commit
+setuptools
+pep517
+configparser>=4.0.2
+pyserial==3.4
+PyYAML>=5.3

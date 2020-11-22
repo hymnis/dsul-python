@@ -1,7 +1,12 @@
 .venv
 .pytest_cache
+.coverage
+coverage.*
 result.html
 result.json
 *.pyc
 __pycache__
 *.log
+build/
+dist/
+dsul.egg-info/

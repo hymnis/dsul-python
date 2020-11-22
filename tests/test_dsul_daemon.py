@@ -1,11 +1,11 @@
 """DSUL - Disturb State USB Light : Test DSUL Daemon."""
 
-import os
-import sys
 import inspect
 import logging
+import os
 import signal
 import socket
+import sys
 import time
 import unittest
 from unittest.mock import patch
@@ -30,7 +30,7 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 with patch("builtins.__import__", side_effect=import_serial):
-    import dsul_daemon as dd
+    import dsul.daemon as dd
 
 
 def port_open(host: str, port: int) -> bool:
@@ -59,8 +59,8 @@ class DsulDaemonTest(unittest.TestCase):
 
     def test_ipc_started(self):
         """Test IPC server started."""
-        self.dd.ipc["host"] = self.ipc_host
-        self.dd.ipc["port"] = self.ipc_port
+        self.dd.settings["ipc"]["host"] = self.ipc_host
+        self.dd.settings["ipc"]["port"] = self.ipc_port
         self.dd.ipc_active = True
 
         # Start IPC server in different process
@@ -91,20 +91,23 @@ class DsulDaemonTest(unittest.TestCase):
 
     def test_serial_deinit(self):
         """Test serial connection de-initializion."""
-        # Verify that serial port is closed and serial not marked as active
+        # Verify that serial port is closed
         self.dd.deinit_serial()
-        self.assertEqual(False, self.dd.serial_active)
         self.assertEqual(False, self.dd.ser.is_open)
 
     def test_serial_read(self):
         """Test serial read."""
         # Verify that reading data from serial port works
-        pass
+        self.dd.ser.set_in_data(b"-?#")  # ping from device
+        result = self.dd.read_serial()
+        self.assertEqual("-?#", result)
 
     def test_serial_write(self):
         """Test serial write."""
         # Verify that writing data to serial port works
-        pass
+        self.dd.write_serial("-?#")  # send ping to device
+        result = self.dd.ser.get_out_data()
+        self.assertEqual(b"-?#", result)
 
     def tearDown(self):
         """Shut down processes and clean up after test."""
