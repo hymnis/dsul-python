@@ -38,7 +38,7 @@ class DsulCli:
             logformat = (
                 "[%(asctime)s] {%(pathname)s} " "%(levelname)s - %(message)s"
             )
-            loglevel = logging.INFO
+            loglevel = logging.WARNING
 
         logging.basicConfig(
             level=loglevel,
@@ -71,14 +71,14 @@ class DsulCli:
         index = 0
         help_string = (
             "dsul-cli --help -l -c <color> -i <index> -m <mode> "
-            "-b <brightness> -h <host> -p <port> --version"
+            "-b <brightness> -h <host> -p <port> -s <socket> --version"
         )
         version_string = f"Version {VERSION}"
 
         try:
             opts, args = getopt.getopt(  # pylint: disable=W0612
                 argv,
-                "lh:p:c:i:m:b:",
+                "lh:p:c:i:m:b:s:",
                 [
                     "help",
                     "list",
@@ -88,6 +88,7 @@ class DsulCli:
                     "index=",
                     "mode=",
                     "brightness=",
+                    "socket=",
                     "version",
                 ],
             )
@@ -129,6 +130,8 @@ class DsulCli:
                 self.settings["ipc"]["port"] = arg
             elif opt in ("-h", "--host"):
                 self.settings["ipc"]["host"] = arg
+            elif opt in ("-s", "--socket"):
+                self.settings["socket"] = arg
             elif opt == "--version":
                 print(version_string)
                 sys.exit()
@@ -202,10 +205,14 @@ class DsulCli:
         """Send IPC call to daemon."""
         try:
             # Send command to daemon
-            server_address = (
-                self.settings["ipc"]["host"],
-                self.settings["ipc"]["port"],
-            )
+            if self.settings["socket"]:
+                server_address = self.settings["socket"]
+            else:
+                server_address = (
+                    self.settings["ipc"]["host"],
+                    self.settings["ipc"]["port"],
+                )
+
             user_input = [
                 {
                     "class": "Event",

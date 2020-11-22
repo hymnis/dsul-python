@@ -37,12 +37,13 @@ This part handles communication with the hardware (serial connection) and allows
 
 ### Options
 
-    --help                    Show help and usage information
-    -h, --host <host>         The hostname/address to expose server on [default: localhost]
-    -p, --port <port>         The port number used for the server [default: 5795]
-    -c, --comport <comport>   The com port [default: /dev/ttyUSB0]
-    -b, --baudrate <baudrate> The baudrate to use with the com port [default: 9600]
-    -t, --timeout <timeout>   The connection timeout to use for com port (in seconds) [default: 1]
+    --help                    Show help and usage information.
+    -h, --host <host>         The hostname/address to expose IPC server on. [default: localhost]
+    -p, --port <port>         The port number used for the IPC server. [default: 5795]
+    -s, --socket <socket>     The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
+    -c, --comport <comport>   The com port. [default: /dev/ttyUSB0]
+    -b, --baudrate <baudrate> The baudrate to use with the com port. [default: 9600]
+    -t, --timeout <timeout>   The connection timeout to use for com port (in seconds). [default: 1]
 
 
 ## CLI client
@@ -50,14 +51,15 @@ Used to communicate with the daemon through TCP IPC.
 
 ### Options
 
-    --help                         Show help and usage information
-    -l, --list                     List acceptable values for color, brightness and mode
-    -c, --color <color>            Set color to given value (must be one of the predefined colors)
+    --help                         Show help and usage information.
+    -l, --list                     List acceptable values for color, brightness and mode.
+    -c, --color <color>            Set color to given value (must be one of the predefined colors).
     -i, --index <index>            LED to set color on. Default is 0 (all LEDs).
-    -b, --brightness <brightness>  Set brightness to given value
-    -m, --mode <mode>              Set mode to given value (must be on of the predefined modes)
-    -h, --host <host>              The hostname/address of the server [default: localhost]
-    -p, --port <port>              The port number used to connect to the server [default: 5795]
+    -b, --brightness <brightness>  Set brightness to given value.
+    -m, --mode <mode>              Set mode to given value (must be on of the predefined modes).
+    -h, --host <host>              The hostname/address of the IPC server. [default: localhost]
+    -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
+    -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
 
 
 ## Development

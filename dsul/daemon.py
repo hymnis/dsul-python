@@ -95,7 +95,7 @@ class DsulDaemon:
     def read_arguments(self, argv) -> None:
         """Parse command line arguments."""
         help_string = (
-            "dsul-daemon --help -h <host> -p <port> -c <com port> "
+            "dsul-daemon --help -h <host> -p <port> -s <socket> -c <com port> "
             "-b <baudrate> --version"
         )
         version_string = f"Version {VERSION}"
@@ -104,8 +104,16 @@ class DsulDaemon:
         try:
             opts, args = getopt.getopt(  # pylint: disable=W0612
                 argv,
-                "p:h:c:b:",
-                ["help", "port=", "host=", "comport=", "baudrate=", "version"],
+                "p:h:c:b:s:",
+                [
+                    "help",
+                    "port=",
+                    "host=",
+                    "comport=",
+                    "baudrate=",
+                    "socket=",
+                    "version",
+                ],
             )
         except getopt.GetoptError:
             print(help_string)
@@ -119,6 +127,8 @@ class DsulDaemon:
                 self.settings["ipc"]["host"] = arg
             elif opt in ("-p", "--port"):
                 self.settings["ipc"]["port"] = int(arg)
+            elif opt in ("-s", "--socket"):
+                self.settings["socket"] = arg
             elif opt in ("-c", "--comport"):
                 self.settings["serial"]["port"] = arg
             elif opt in ("-b", "--baudrate"):
@@ -185,14 +195,14 @@ class DsulDaemon:
 
     def ipc_process(self) -> None:
         """Handle IPC communication."""
-        server_address = (
-            self.settings["ipc"]["host"],
-            self.settings["ipc"]["port"],
-        )
-        logging.info(
-            f"Starting IPC server ({self.settings['ipc']['host']}:"
-            f"{self.settings['ipc']['port']})"
-        )
+        if self.settings["socket"]:
+            server_address = self.settings["socket"]
+        else:
+            server_address = (
+                self.settings["ipc"]["host"],
+                self.settings["ipc"]["port"],
+            )
+        logging.info(f"Starting IPC server ({server_address}")
 
         while self.ipc_active:
             ipc.Server(
