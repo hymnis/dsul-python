@@ -3,6 +3,11 @@ flake8
 pylint
 mypy
 isort
+coverage
+pytest
+pytest-cov
+pytest-cover
+pytest-coverage
 pylama>=7.6.6
 pre-commit
 setuptools

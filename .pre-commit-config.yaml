@@ -31,11 +31,11 @@ repos:
       - id: check-strings
         name: check-strings
         language: script
-        entry: ./check-strings.sh
+        entry: ./scripts/check-strings.sh
         files: ''
         exclude: |
           (?x)^(
-            check-strings.sh|
+            scripts/check-strings.sh|
             README.md|
             LICENSE
           )$

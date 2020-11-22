@@ -53,6 +53,7 @@ Used to communicate with the daemon through TCP IPC.
     --help                         Show help and usage information
     -l, --list                     List acceptable values for color, brightness and mode
     -c, --color <color>            Set color to given value (must be one of the predefined colors)
+    -i, --index <index>            LED to set color on. Default is 0 (all LEDs).
     -b, --brightness <brightness>  Set brightness to given value
     -m, --mode <mode>              Set mode to given value (must be on of the predefined modes)
     -h, --host <host>              The hostname/address of the server [default: localhost]
@@ -65,6 +66,7 @@ This is the basic flow for development on the project. Step 1-2 should only have
 1. Install python requirements (`pip install -r requirements.development.txt`)
 0. Initialize pre-commit (`pre-commit install`)
 0. Develop stuff
+0. Format and lint
 0. Test
 0. Commit changes
 0. Push changes
@@ -75,13 +77,13 @@ As this repo uses [pre-commit](https://pre-commit.com/) that does linting and fo
 ### Testing
 Tests are located in the _tests_ directory. They should be named according to format: `test_<module name>.py`
 
-To run all tests, use the `unittest` module like so: `python -m unittest` or if you only want to test a specific module: `python -m unittest tests.test_<module name>`.
+To run all tests (with coverage report), use: `pytest` or if you only want to test a specific unittest module: `python -m unittest tests.test_<module name>`.
 
 ### Formatting
-All python code should be formated by black. If it's not it will be caught by the pre-commit hook.
+All python code should be formatted by `black`. If it's not it will be caught by the pre-commit hook.
 
 ### pre-commit
-Current configuration will lint and format check, mostly python, code, as well as check files for strings (like "TODO") and missed git merge markings.
+Current configuration will lint and format check, mostly python, code, as well as check files for strings (like "TODO" and "DEBUG") and missed git merge markings.
 Look in `.pre-commig-config.yaml` for exact order of tasks and their settings.
 
 

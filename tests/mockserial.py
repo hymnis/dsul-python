@@ -5,6 +5,15 @@ Based on the work of D. Thiebaut.
 """
 
 
+class serialutil:
+    """Mocked class for utils and exceptions."""
+
+    class SerialException(Exception):
+        """Mocked serial exceptions."""
+
+        print("[E] A serial error occured. (mocked serial used)")
+
+
 class Serial:
     """Mock serial class, for testing."""
 
@@ -32,8 +41,8 @@ class Serial:
         self.rtscts = rtscts
         self.dsrdtr = dsrdtr
         self.is_open = False
-        self._out_data = ""
-        self._in_data = ""
+        self._out_data = b""
+        self._in_data = b""
 
     def __str__(self):
         """Return a string representation of the class."""
@@ -45,6 +54,11 @@ class Serial:
             f"xonxoff={self.xonxoff}, rtscts={self.rtscts}, "
             f"dsrdtr={self.dsrdtr})"
         )
+
+    @property
+    def in_waiting(self):
+        """Return number for bytes in the out buffer."""
+        return len(self._out_data)
 
     def is_open(self):
         """Return status for port."""
@@ -60,7 +74,6 @@ class Serial:
 
     def write(self, string):
         """Write characters."""
-        print(f"Serial out: {string}")
         self._out_data += string
 
     def read(self, n=1):
@@ -69,20 +82,21 @@ class Serial:
 
         The characters are read from the string _data.
         """
-        s = self._data[0:n]
+        s = self._in_data[0:n]
         self._in_data = self._in_data[n:]
-        # print(f"Serial in: self._data = {self.data}")
         return s
 
     def readline(self):
         r"""Read characters until \n is found."""
         returnIndex = self._in_data.index("\n")
+        # fmt: off
         if returnIndex != -1:
-            s = self._in_data[0 : returnIndex + 1]
-            self._in_data = self._in_data[returnIndex + 1 :]
-            return s
+            s = self._in_data[0:returnIndex + 1]
+            self._in_data = self._in_data[returnIndex + 1:]
+            return bytes(s, encoding="utf-8")
         else:
-            return ""
+            return b""
+        # fmt: on
 
     def set_in_data(self, in_data):
         """Set the _in_data variable data (data read from "serial port")."""
