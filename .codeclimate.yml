@@ -2,3 +2,6 @@
 version: "2"
 exclude_patterns:
   - .venv/
+  - scripts/
+  - build/
+  - assets/
