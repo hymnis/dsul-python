@@ -63,10 +63,11 @@ Used to communicate with the daemon through TCP IPC.
 
 
 ## Development
-This is the basic flow for development on the project. Step 1-2 should only have to be run once, while 3-6 is the continuous development cycle.
+This is the basic flow for development on the project. Step 1-2 should only have to be run once, while 3-8 is the continuous development cycle.
 
 1. Install python requirements (`pip install -r requirements.development.txt`)
 0. Initialize pre-commit (`pre-commit install`)
+0. Create feature branch
 0. Develop stuff
 0. Format and lint
 0. Test
