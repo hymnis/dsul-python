@@ -46,6 +46,41 @@ class SocketRefused(IPCError):
     """Error class for refusal to open socket."""
 
 
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """Handle each request in a separate thread."""
+
+
+class ThreadedUnixStreamServer(
+    socketserver.ThreadingMixIn, socketserver.UnixStreamServer
+):
+    """Handle each request in a separate thread."""
+
+
+def create_request_handler(server=None):
+    """Create request handler with given message handler."""
+
+    class ThreadedRequestHandler(socketserver.BaseRequestHandler):
+        def handle(self):
+            """Handle received message and send back response."""
+            sock = self.request
+            response = ""
+
+            while True:
+                try:
+                    objects = _read_objects(sock)
+                    response = server._callback(objects)
+                except ConnectionClosed:
+                    return
+                except ConnectionResetError:
+                    sock.close()
+                except Exception:
+                    sock.close()
+
+                _write_objects(sock, response)
+
+    return ThreadedRequestHandler
+
+
 def _read_objects(sock):
     header = sock.recv(4)
 
@@ -188,45 +223,48 @@ class Client:
 class Server:
     """IPC server class."""
 
-    def __init__(self, address, callback, bind_and_activate=True):
+    def __init__(self, *, address, callback, bind_and_activate=True):
         """Initialize the server."""
+        super(Server, self).__init__()
+        self._address = address
+        self._bind_and_activate = bind_and_activate
         if not callable(callback):
+            self._callback = lambda x: []
 
-            def callback(x):
-                return []  # pylint: disable=E0102,C0111,C0321
+        self._callback = callback
+        self._server = None
 
-        class IPCHandler(socketserver.BaseRequestHandler):
-            """Handler for IPC connections."""
-
-            def handle(self):
-                while True:
-                    try:
-                        results = _read_objects(self.request)
-                    except ConnectionClosed:
-                        return
-                    _write_objects(self.request, callback(results))
-
-        self.start_server(address, IPCHandler, bind_and_activate)
-
-    def start_server(self, address, ipc_handler, bind_and_activate):
+    def run(self):
         """Start the IPC server."""
-        if isinstance(address, str):
+        ipc_handler = create_request_handler(self)
+
+        if isinstance(self._address, str):
             try:
-                os.unlink(address)
+                os.unlink(self._address)
             except OSError:
-                if os.path.exists(address):
+                if os.path.exists(self._address):
                     raise
 
-            with socketserver.UnixStreamServer(
-                server_address=address,
+            with ThreadedUnixStreamServer(
+                server_address=self._address,
                 RequestHandlerClass=ipc_handler,
-                bind_and_activate=bind_and_activate,
+                bind_and_activate=self._bind_and_activate,
             ) as server_instance:
-                server_instance.serve_forever()
+                self._server = server_instance
+                self._server.socket.settimeout(0.0)
+                self._server.serve_forever()
         else:
-            with socketserver.TCPServer(
-                server_address=address,
+            with ThreadedTCPServer(
+                server_address=self._address,
                 RequestHandlerClass=ipc_handler,
-                bind_and_activate=bind_and_activate,
+                bind_and_activate=self._bind_and_activate,
             ) as server_instance:
-                server_instance.serve_forever()
+                self._server = server_instance
+                self._server.socket.settimeout(0.0)
+                self._server.serve_forever()
+
+    def shutdown(self):
+        """Stop and shut down the server."""
+        if self._server is not None:
+            self._server.shutdown()
+            self._server.server_close()
