@@ -30,6 +30,12 @@ def exception_handler(
 sys.excepthook = exception_handler
 
 
+def main():
+    """Run the program."""
+    APP = DsulDaemon(sys.argv[1:])
+    APP.run()
+
+
 class DsulDaemon:
     """DSUL Daemon application class."""
 
@@ -92,10 +98,10 @@ class DsulDaemon:
 
     # SETTING #
 
-    def read_arguments(self, argv) -> None:
+    def read_arguments(self, argv) -> None:  # noqa
         """Parse command line arguments."""
         help_string = (
-            "dsul-daemon --help -h <host> -p <port> -c <com port> "
+            "dsul-daemon --help -h <host> -p <port> -s <socket> -c <com port> "
             "-b <baudrate> --version"
         )
         version_string = f"Version {VERSION}"
@@ -104,8 +110,16 @@ class DsulDaemon:
         try:
             opts, args = getopt.getopt(  # pylint: disable=W0612
                 argv,
-                "p:h:c:b:",
-                ["help", "port=", "host=", "comport=", "baudrate=", "version"],
+                "p:h:c:b:s:",
+                [
+                    "help",
+                    "port=",
+                    "host=",
+                    "comport=",
+                    "baudrate=",
+                    "socket=",
+                    "version",
+                ],
             )
         except getopt.GetoptError:
             print(help_string)
@@ -119,6 +133,8 @@ class DsulDaemon:
                 self.settings["ipc"]["host"] = arg
             elif opt in ("-p", "--port"):
                 self.settings["ipc"]["port"] = int(arg)
+            elif opt in ("-s", "--socket"):
+                self.settings["socket"] = arg
             elif opt in ("-c", "--comport"):
                 self.settings["serial"]["port"] = arg
             elif opt in ("-b", "--baudrate"):
@@ -154,21 +170,27 @@ class DsulDaemon:
         """Run the main loop of the application."""
         try:
             self.ipc_active = True
-            ipc_thread = threading.Thread(target=self.ipc_process, daemon=True)
+            ipc_stop = threading.Event()
+            ipc_thread = threading.Thread(
+                target=self.ipc_process, daemon=True, args=(1, ipc_stop)
+            )
             ipc_thread.start()
 
             self.pinger_active = True
+            pinger_stop = threading.Event()
             pinger_thread = threading.Thread(
-                target=self.pinger_process, daemon=True
+                target=self.pinger_process, daemon=True, args=(2, pinger_stop)
             )
             pinger_thread.start()
 
             self.send_information_request()
 
-            while ipc_thread.is_alive():
+            while self.ipc_active:
                 self.process_commands()
                 time.sleep(0.5)  # NOTE: find better way of handling this
 
+            ipc_stop.set()
+            pinger_stop.set()
             ipc_thread.join()
             pinger_thread.join()
 
@@ -177,39 +199,62 @@ class DsulDaemon:
 
             self.serial_active = False
             self.ipc_active = False
+            ipc_stop.set()
             self.pinger_active = False
+            pinger_stop.set()
+
             self.deinit_serial()
+            logging.debug("Serial shut down.")
+            pinger_thread.join()
+            logging.debug("Pinger thread joined")
+            ipc_thread.join()
+            logging.debug("IPC thread joined")
             sys.exit()
 
     # THREAD PROCESSES #
 
-    def ipc_process(self) -> None:
+    def ipc_process(self, t_index, stop_event) -> None:
         """Handle IPC communication."""
-        server_address = (
-            self.settings["ipc"]["host"],
-            self.settings["ipc"]["port"],
-        )
-        logging.info(
-            f"Starting IPC server ({self.settings['ipc']['host']}:"
-            f"{self.settings['ipc']['port']})"
-        )
-
-        while self.ipc_active:
-            ipc.Server(
-                address=server_address, callback=self.process_server_request
+        if self.settings["socket"]:
+            if self.settings["socket"] == "":
+                sys.exit(20)
+            server_address = self.settings["socket"]
+        else:
+            server_address = (
+                self.settings["ipc"]["host"],
+                self.settings["ipc"]["port"],
             )
+        logging.info(f"Starting IPC server ({server_address})")
+
+        ipc_server = ipc.Server(
+            address=server_address,
+            callback=self.process_server_request,
+        )
+        ipc_server_thread = threading.Thread(
+            target=ipc_server.run, daemon=False
+        )
+        ipc_server_thread.start()
+
+        while not stop_event.is_set():
+            stop_event.wait(timeout=1)  # just keep looping
+
+        ipc_server.shutdown()
+        ipc_server_thread.join()
         logging.info("IPC server stopped")
 
-    def pinger_process(self) -> None:
+    def pinger_process(self, t_index, stop_event) -> None:
         """Send pings to device, to keep communication open."""
         logging.info("Starting pinger")
 
         while self.pinger_active and self.serial_active:
             starttime = time.time()
 
-            while True:
+            while not stop_event.is_set():
                 self.send_ping()
-                time.sleep(60.0 - ((time.time() - starttime) % 60.0))
+                # time.sleep(60.0 - ((time.time() - starttime) % 60.0))
+                stop_event.wait(
+                    timeout=60.0 - ((time.time() - starttime) % 60.0)
+                )
 
         logging.info("Pinger stopped")
 
@@ -550,5 +595,4 @@ class DsulDaemon:
 
 
 if __name__ == "__main__":
-    APP = DsulDaemon(sys.argv[1:])
-    APP.run()
+    sys.exit(main())

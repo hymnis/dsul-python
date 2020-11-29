@@ -1,6 +1,6 @@
 .venv
 .pytest_cache
-.coverage
+.coverage*
 coverage.*
 result.html
 result.json

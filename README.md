@@ -6,7 +6,7 @@
 
 The goal of the project is to have a USB connected light, that can be be set to different colors, with adjustable brightness and different modes, which can communicate the users current preference regarding being disturbed.
 
-This implementation used Python 3.x for both daemon/server and client. It should work on most platforms as it uses as few and standard libraries as possible.
+This implementation used Python 3.x for both daemon/server and client. It should work on most platforms as it uses as few and standard libraries as possible. Using sockets is currently not supported on Windows though.
 
 
 ## Hardware
@@ -17,13 +17,22 @@ The firmware project is available at [hymnis/dsul-arduino](https://github.com/hy
 
 
 ## Installation
-The requirements for the daemon and CLI client are split into separate files, so only the needed libraries needs to be installed if only using one component.
 
-- To install the daemon requirements, run: `pip install -r requirements.daemon.txt`
-- To install the CLI client requirements, run: `pip install -r requirements.cli.txt`
+If the package isn't available from package archive, build it from source. DSUL is a proper python project and can be built into package using PEP517.
 
-If you are using a virtual environment, remember to activate it before running `pip install`.
+Build artifacts, found in the `dist` directory, include a .tar.gz and a .whl package.
 
+### Build package(s)
+
+```
+python -m pep517.build .
+```
+
+### Install package
+
+```
+pip install dist/dsul-<version>-py3-none-any.whl
+```
 
 ## Configuration
 
@@ -33,38 +42,48 @@ If daemon and client are run on different machines, make sure the use the same d
 
 
 ## Daemon
-This part handles communication with the hardware (serial connection) and allows clients to send commands (TCP IPC connection).
+This part handles communication with the hardware (serial connection) and allows clients to send commands (via IPC connection).
+
+
+As module: `python -m dsul.daemon [arguments]`  
+As package: `dsul-daemon [arguments]`
 
 ### Options
 
-    --help                    Show help and usage information
-    -h, --host <host>         The hostname/address to expose server on [default: localhost]
-    -p, --port <port>         The port number used for the server [default: 5795]
-    -c, --comport <comport>   The com port [default: /dev/ttyUSB0]
-    -b, --baudrate <baudrate> The baudrate to use with the com port [default: 9600]
-    -t, --timeout <timeout>   The connection timeout to use for com port (in seconds) [default: 1]
+    --help                    Show help and usage information.
+    -h, --host <host>         The hostname/address to expose IPC server on. [default: localhost]
+    -p, --port <port>         The port number used for the IPC server. [default: 5795]
+    -s, --socket <socket>     The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
+    -c, --comport <comport>   The com port. [default: /dev/ttyUSB0]
+    -b, --baudrate <baudrate> The baudrate to use with the com port. [default: 9600]
+    -t, --timeout <timeout>   The connection timeout to use for com port (in seconds). [default: 1]
 
 
 ## CLI client
-Used to communicate with the daemon through TCP IPC.
+Used to communicate with the daemon through IPC. TCP/IP or Unix domain socket can be used (TCP/IP is default).
+
+As module: `python -m dsul.cli [arguments]`  
+As package: `dsul-cli [arguments]`
 
 ### Options
 
-    --help                         Show help and usage information
-    -l, --list                     List acceptable values for color, brightness and mode
-    -c, --color <color>            Set color to given value (must be one of the predefined colors)
+    --help                         Show help and usage information.
+    -l, --list                     List acceptable values for color, brightness and mode.
+    -c, --color <color>            Set color to given value (must be one of the predefined colors).
     -i, --index <index>            LED to set color on. Default is 0 (all LEDs).
-    -b, --brightness <brightness>  Set brightness to given value
-    -m, --mode <mode>              Set mode to given value (must be on of the predefined modes)
-    -h, --host <host>              The hostname/address of the server [default: localhost]
-    -p, --port <port>              The port number used to connect to the server [default: 5795]
+    -b, --brightness <brightness>  Set brightness to given value.
+    -m, --mode <mode>              Set mode to given value (must be on of the predefined modes).
+    -h, --host <host>              The hostname/address of the IPC server. [default: localhost]
+    -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
+    -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
 
 
 ## Development
-This is the basic flow for development on the project. Step 1-2 should only have to be run once, while 3-6 is the continuous development cycle.
+This is the basic flow for development on the project. Step 1-2 should only have to be run once, while 3-8 is the continuous development cycle.
 
 1. Install python requirements (`pip install -r requirements.development.txt`)
 0. Initialize pre-commit (`pre-commit install`)
+0. Create feature branch
 0. Develop stuff
 0. Format and lint
 0. Test

@@ -3,9 +3,9 @@
 import inspect
 import logging
 import os
-import signal
 import socket
 import sys
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -52,26 +52,30 @@ class DsulDaemonTest(unittest.TestCase):
     def setUp(self):
         """Initialize the DSUL Daemon before test."""
         logging.disable(logging.CRITICAL)  # disable most logging during test
-        self.server_pid = None
         self.ipc_host = "localhost"
-        self.ipc_port = 5795
+        self.ipc_port = 5796
         self.dd = dd.DsulDaemon([])  # use default setttings
 
-    def test_ipc_started(self):
+    def test_ipc_tcp_started(self):
         """Test IPC server started."""
         self.dd.settings["ipc"]["host"] = self.ipc_host
         self.dd.settings["ipc"]["port"] = self.ipc_port
         self.dd.ipc_active = True
 
-        # Start IPC server in different process
-        pid = os.fork()
-        if not pid:
-            return self.dd.ipc_process()
-        self.server_pid = pid
+        # Start IPC server in a thread
+        ipc_stop = threading.Event()
+        ipc_thread = threading.Thread(
+            target=self.dd.ipc_process, daemon=True, args=(1, ipc_stop)
+        )
+        ipc_thread.start()
         time.sleep(1)  # wait for server to start properly
 
         # Verify the IPC server starts
         is_open = port_open(self.ipc_host, self.ipc_port)
+
+        ipc_stop.set()
+        ipc_thread.join()
+
         self.assertEqual(True, self.dd.ipc_active)
         self.assertEqual(True, is_open)
 
@@ -111,11 +115,6 @@ class DsulDaemonTest(unittest.TestCase):
 
     def tearDown(self):
         """Shut down processes and clean up after test."""
-        if not self.server_pid:
-            return
-
-        os.kill(self.server_pid, signal.SIGINT)
-
         logging.disable(logging.NOTSET)  # enable logging again
 
 

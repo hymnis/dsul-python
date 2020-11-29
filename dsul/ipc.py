@@ -16,6 +16,7 @@
 #   limitations under the License.
 
 import json
+import os
 import socket
 import socketserver
 import struct
@@ -24,37 +25,60 @@ import struct
 class IPCError(Exception):
     """Error class for IPC errors."""
 
-    pass
-
 
 class UnknownMessage(IPCError):
     """Error class for unknown messages."""
-
-    pass
 
 
 class InvalidSerialization(IPCError):
     """Error class for invalid serilization."""
 
-    pass
-
 
 class ConnectionClosed(IPCError):
     """Error class for closed connection."""
-
-    pass
 
 
 class ConnectionRefused(IPCError):
     """Error class for refused connection."""
 
-    pass
-
 
 class SocketRefused(IPCError):
     """Error class for refusal to open socket."""
 
-    pass
+
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """Handle each request in a separate thread."""
+
+
+class ThreadedUnixStreamServer(
+    socketserver.ThreadingMixIn, socketserver.UnixStreamServer
+):
+    """Handle each request in a separate thread."""
+
+
+def create_request_handler(server=None):
+    """Create request handler with given message handler."""
+
+    class ThreadedRequestHandler(socketserver.BaseRequestHandler):
+        def handle(self):
+            """Handle received message and send back response."""
+            sock = self.request
+            response = ""
+
+            while True:
+                try:
+                    objects = _read_objects(sock)
+                    response = server._callback(objects)
+                except ConnectionClosed:
+                    return
+                except ConnectionResetError:
+                    sock.close()
+                except Exception:
+                    sock.close()
+
+                _write_objects(sock, response)
+
+    return ThreadedRequestHandler
 
 
 def _read_objects(sock):
@@ -105,9 +129,9 @@ class Message:
                         classmap[obj["class"]](obj["args"], **obj["kwargs"])
                     )
                 except KeyError as err:
-                    raise UnknownMessage(err)
+                    raise UnknownMessage(err) from err
                 except TypeError as err:
-                    raise InvalidSerialization(err)
+                    raise InvalidSerialization(err) from err
 
         return serialized
 
@@ -162,15 +186,20 @@ class Client:
     def __init__(self, address):
         """Initilize the client class."""
         self.addr = address
-        address_family = socket.AF_INET
+
+        if isinstance(self.addr, str):
+            address_family = socket.AF_UNIX
+        else:
+            address_family = socket.AF_INET
+
         self.sock = socket.socket(address_family, socket.SOCK_STREAM)
 
     def connect(self):
         """Connect to the server."""
         try:
             self.sock.connect(self.addr)
-        except ConnectionRefusedError:
-            raise ConnectionRefused
+        except ConnectionRefusedError as err:
+            raise ConnectionRefused from err
 
     def close(self):
         """Close the connection to the server."""
@@ -194,27 +223,48 @@ class Client:
 class Server:
     """IPC server class."""
 
-    def __init__(self, address, callback, bind_and_activate=True):
+    def __init__(self, *, address, callback, bind_and_activate=True):
         """Initialize the server."""
+        super(Server, self).__init__()
+        self._address = address
+        self._bind_and_activate = bind_and_activate
         if not callable(callback):
+            self._callback = lambda x: []
 
-            def callback(x):
-                return []  # pylint: disable=E0102,C0111,C0321
+        self._callback = callback
+        self._server = None
 
-        class IPCHandler(socketserver.BaseRequestHandler):
-            """Handler for IPC connections."""
+    def run(self):
+        """Start the IPC server."""
+        ipc_handler = create_request_handler(self)
 
-            def handle(self):
-                while True:
-                    try:
-                        results = _read_objects(self.request)
-                    except ConnectionClosed:
-                        return
-                    _write_objects(self.request, callback(results))
+        if isinstance(self._address, str):
+            try:
+                os.unlink(self._address)
+            except OSError:
+                if os.path.exists(self._address):
+                    raise
 
-        with socketserver.TCPServer(
-            server_address=address,
-            RequestHandlerClass=IPCHandler,
-            bind_and_activate=bind_and_activate,
-        ) as server_instance:
-            server_instance.serve_forever()
+            with ThreadedUnixStreamServer(
+                server_address=self._address,
+                RequestHandlerClass=ipc_handler,
+                bind_and_activate=self._bind_and_activate,
+            ) as server_instance:
+                self._server = server_instance
+                self._server.socket.settimeout(0.0)
+                self._server.serve_forever()
+        else:
+            with ThreadedTCPServer(
+                server_address=self._address,
+                RequestHandlerClass=ipc_handler,
+                bind_and_activate=self._bind_and_activate,
+            ) as server_instance:
+                self._server = server_instance
+                self._server.socket.settimeout(0.0)
+                self._server.serve_forever()
+
+    def shutdown(self):
+        """Stop and shut down the server."""
+        if self._server is not None:
+            self._server.shutdown()
+            self._server.server_close()
