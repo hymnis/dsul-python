@@ -18,6 +18,7 @@ def main():
 class DsulCli:
     """DSUL CLI application class."""
 
+    logger: Any = None
     retries: int = 0
     colors: Dict[str, List[str]] = {}
     modes: List[str] = []
@@ -35,14 +36,12 @@ class DsulCli:
 
         if DEBUG:
             logformat = (
-                "[%(asctime)s] {%(pathname)s:%(lineno)d} "
-                "%(levelname)s - %(message)s"
+                "[%(asctime)s] %(levelname)-8s {%(pathname)s:%(lineno)d} "
+                "- %(message)s"
             )
             loglevel = logging.DEBUG
         else:
-            logformat = (
-                "[%(asctime)s] {%(pathname)s} " "%(levelname)s - %(message)s"
-            )
+            logformat = "%(levelname)-8s %(message)s"
             loglevel = logging.WARNING
 
         logging.basicConfig(
@@ -50,6 +49,7 @@ class DsulCli:
             format=logformat,
             datefmt="%H:%M:%S",
         )
+        self.logger = logging.getLogger(__name__)
 
         self.settings: Dict[str, Any] = settings.get_settings("cli")
         self.read_argument(argv)
@@ -59,12 +59,16 @@ class DsulCli:
     def __missing__(self, key) -> str:
         """Log and return missing key information."""
         message = f"{key} not present in the dictionary!"
-        logging.warning(message)
+        self.logger.warning(message)
         return message
 
     def __str__(self) -> str:
         """Return a string value representing the object."""
-        message = "DsuCli"
+        message = (
+            "DsulCli<>(logger=val, settings=val, sequence_done=val, "
+            "command_queue=val, waiting_for_reply=val, current_mode=val, "
+            "current_color=val, current_brightness=val)"
+        )
         return message
 
     def read_argument(self, argv) -> None:  # noqa
@@ -76,14 +80,15 @@ class DsulCli:
         index = 0
         help_string = (
             "dsul-cli --help -l -c <color> -i <index> -m <mode> "
-            "-b <brightness> -h <host> -p <port> -s <socket> --version"
+            "-b <brightness> -h <host> -p <port> -s <socket> --version "
+            "--verbose"
         )
         version_string = f"Version {VERSION}"
 
         try:
             opts, args = getopt.getopt(  # pylint: disable=W0612
                 argv,
-                "lh:p:c:i:m:b:s:",
+                "lh:p:c:i:m:b:s:v",
                 [
                     "help",
                     "list",
@@ -95,6 +100,7 @@ class DsulCli:
                     "brightness=",
                     "socket=",
                     "version",
+                    "verbose",
                 ],
             )
         except getopt.GetoptError:
@@ -120,7 +126,7 @@ class DsulCli:
                 if int(arg) <= self.settings["leds"]:
                     index = int(arg)
                 else:
-                    logging.error(
+                    self.logger.error(
                         "Specified LED index is outside supported range (%s)"
                         % arg
                     )
@@ -140,9 +146,11 @@ class DsulCli:
             elif opt == "--version":
                 print(version_string)
                 sys.exit()
+            elif opt in ("-v", "--verbose"):
+                self.logger.setLevel(logging.INFO)
 
         if True not in ready.values():
-            logging.error("Missing commands and/or arguments")
+            self.logger.error("Missing commands and/or arguments")
             sys.exit(1)
         else:
             for key in ready.keys():
@@ -166,7 +174,7 @@ class DsulCli:
                 {"type": "command", "key": "color", "value": command_value}
             )
         else:
-            logging.error("Specified color isn't supported (%s)" % color)
+            self.logger.error("Specified color isn't supported (%s)" % color)
             sys.exit(1)
 
     def set_brightness(self, brightness) -> None:
@@ -185,7 +193,7 @@ class DsulCli:
                 }
             )
         else:
-            logging.error(
+            self.logger.error(
                 "Specified brightness isn't supported (%s)" % brightness
             )
             sys.exit(1)
@@ -198,7 +206,7 @@ class DsulCli:
                 {"type": "command", "key": "mode", "value": mode}
             )
         else:
-            logging.error("Specified mode isn't supported (%s)" % mode)
+            self.logger.error("Specified mode isn't supported (%s)" % mode)
             sys.exit(1)
 
     def perform_actions(self) -> None:
@@ -226,20 +234,20 @@ class DsulCli:
                 }
             ]
             objects = ipc.Message.deserialize(user_input)
-            logging.debug(f"Sending objects: {objects}")
+            self.logger.debug(f"Sending objects: {objects}")
             with ipc.Client(server_address) as client:
                 response = client.send(objects)
-            logging.debug(f"Received objects: {response}")
+            self.logger.debug(f"Received objects: {response}")
             self.handle_response(response)
         except KeyError:
-            logging.error("IPC: Key error")
-            # sys.exit(1)
+            self.logger.error("Key error")
+            sys.exit(1)
         except ipc.UnknownMessage:
-            logging.error("IPC: Unknown message")
-            # sys.exit(1)
+            self.logger.error("Unknown IPC message")
+            sys.exit(1)
         except ipc.ConnectionRefused:
-            logging.error("IPC: Connection was refused")
-            # sys.exit(2)
+            self.logger.error("IPC connection was refused")
+            sys.exit(2)
 
     def handle_response(self, response) -> None:
         """Handle the reponse from daemon."""
@@ -250,26 +258,26 @@ class DsulCli:
         value = value.strip()
 
         if key == "OK":
-            logging.info("Success")
+            self.logger.info("Success")
             self.parse_response_value(value)
             self.sequence_done = True
         elif key == "NOK":
-            logging.info("Not OK")
+            self.logger.info("Not OK")
             self.parse_response_value(value)
             self.sequence_done = True
         elif key == "ACK":
             if value == "No serial connection":
-                logging.info("Daemon can't connect to device")
+                self.logger.warning("Daemon can't connect to device")
             elif value == "Invalid command/argument":
-                logging.info("Invalid command or argument sent")
+                self.logger.warning("Invalid command or argument sent")
             elif value == "Unknown event type":
-                logging.info("Unknown type of event sent")
+                self.logger.warning("Unknown type of event sent")
             else:
                 command, argument = re.split(r"=", value, 1)
                 command = command.strip()
                 argument = argument.strip()
 
-                logging.info(
+                self.logger.info(
                     "Command sent. Setting %s to %s", command, argument
                 )
                 self.ipc_send("request", "status", command)
