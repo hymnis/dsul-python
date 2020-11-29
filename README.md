@@ -6,7 +6,7 @@
 
 The goal of the project is to have a USB connected light, that can be be set to different colors, with adjustable brightness and different modes, which can communicate the users current preference regarding being disturbed.
 
-This implementation used Python 3.x for both daemon/server and client. It should work on most platforms as it uses as few and standard libraries as possible.
+This implementation used Python 3.x for both daemon/server and client. It should work on most platforms as it uses as few and standard libraries as possible. Using sockets is currently not supported on Windows though.
 
 
 ## Hardware
@@ -17,13 +17,22 @@ The firmware project is available at [hymnis/dsul-arduino](https://github.com/hy
 
 
 ## Installation
-The requirements for the daemon and CLI client are split into separate files, so only the needed libraries needs to be installed if only using one component.
 
-- To install the daemon requirements, run: `pip install -r requirements.daemon.txt`
-- To install the CLI client requirements, run: `pip install -r requirements.cli.txt`
+If the package isn't available from package archive, build it from source. DSUL is a proper python project and can be built into package using PEP517.
 
-If you are using a virtual environment, remember to activate it before running `pip install`.
+Build artifacts, found in the `dist` directory, include a .tar.gz and a .whl package.
 
+### Build package(s)
+
+```
+python -m pep517.build .
+```
+
+### Install package
+
+```
+pip install dist/dsul-<version>-py3-none-any.whl
+```
 
 ## Configuration
 
@@ -33,7 +42,11 @@ If daemon and client are run on different machines, make sure the use the same d
 
 
 ## Daemon
-This part handles communication with the hardware (serial connection) and allows clients to send commands (TCP IPC connection).
+This part handles communication with the hardware (serial connection) and allows clients to send commands (via IPC connection).
+
+
+As module: `python -m dsul.daemon [arguments]`  
+As package: `dsul-daemon [arguments]`
 
 ### Options
 
@@ -47,7 +60,10 @@ This part handles communication with the hardware (serial connection) and allows
 
 
 ## CLI client
-Used to communicate with the daemon through TCP IPC.
+Used to communicate with the daemon through IPC. TCP/IP or Unix domain socket can be used (TCP/IP is default).
+
+As module: `python -m dsul.cli [arguments]`  
+As package: `dsul-cli [arguments]`
 
 ### Options
 

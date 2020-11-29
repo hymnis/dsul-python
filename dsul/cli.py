@@ -10,6 +10,11 @@ from typing import Any, Dict, List, Union, no_type_check
 from . import DEBUG, VERSION, ipc, settings
 
 
+def main():
+    """Run the application."""
+    DsulCli(sys.argv[1:])
+
+
 class DsulCli:
     """DSUL CLI application class."""
 
@@ -325,4 +330,4 @@ class DsulCli:
 
 
 if __name__ == "__main__":
-    APP = DsulCli(sys.argv[1:])
+    sys.exit(main())

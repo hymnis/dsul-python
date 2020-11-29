@@ -30,6 +30,12 @@ def exception_handler(
 sys.excepthook = exception_handler
 
 
+def main():
+    """Run the program."""
+    APP = DsulDaemon(sys.argv[1:])
+    APP.run()
+
+
 class DsulDaemon:
     """DSUL Daemon application class."""
 
@@ -198,11 +204,11 @@ class DsulDaemon:
             pinger_stop.set()
 
             self.deinit_serial()
-            logging.debug("Serial has de-initialized.")
+            logging.debug("Serial shut down.")
             pinger_thread.join()
-            logging.debug("Pinger thread is joined")
+            logging.debug("Pinger thread joined")
             ipc_thread.join()
-            logging.debug("IPC thread is joined")
+            logging.debug("IPC thread joined")
             sys.exit()
 
     # THREAD PROCESSES #
@@ -589,5 +595,4 @@ class DsulDaemon:
 
 
 if __name__ == "__main__":
-    APP = DsulDaemon(sys.argv[1:])
-    APP.run()
+    sys.exit(main())
