@@ -3,6 +3,7 @@
 [![Build Status](https://travis-ci.org/hymnis/dsul-python.svg?branch=master)](https://travis-ci.org/hymnis/dsul-python)
 [![Maintainability](https://api.codeclimate.com/v1/badges/0a360f196a019278c3eb/maintainability)](https://codeclimate.com/github/hymnis/dsul-python/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/0a360f196a019278c3eb/test_coverage)](https://codeclimate.com/github/hymnis/dsul-python/test_coverage)
+[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 The goal of the project is to have a USB connected light, that can be be set to different colors, with adjustable brightness and different modes, which can communicate the users current preference regarding being disturbed.
 
@@ -11,7 +12,7 @@ This implementation used Python 3.x for both daemon/server and client. It should
 
 ## Hardware
 
-The hardware used is an Arduino connected to a Neopixel module. The project was developed using an Arduino Nano, but should work on most models as long as the firmware fit and it has enough RAM for the number of LED's used in the module.
+The hardware used is an Arduino connected to a NeoPixel module. The project was developed using an Arduino Nano, but should work on most models as long as the firmware fit and it has enough RAM for the number of LED's used in the module.
 
 The firmware project is available at [hymnis/dsul-arduino](https://github.com/hymnis/dsul-arduino).
 
@@ -19,7 +20,9 @@ The firmware project is available at [hymnis/dsul-arduino](https://github.com/hy
 
 As both FW (firmware) and SW (software) needs to talk to each other, not all combinations of versions work. Make sure that the FW and SW versions are compatible with each other. The latest (stable) versions usually has the best support.
 
-- SW 0.3.0 works with FW 0.2.0
+**SW 0.3.0 works with:**
+- FW 0.2.0
+- FW 0.2.1
 
 
 ## Installation
