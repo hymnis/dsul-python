@@ -20,7 +20,6 @@ def get_settings(settings_type: str) -> Dict[str, Any]:
         "socket": "",
         "serial": {},
         "modes": {},
-        "leds": 0,
         "brightness_min": 0,
         "brightness_max": 0,
         "colors": {},
@@ -32,11 +31,11 @@ def get_settings(settings_type: str) -> Dict[str, Any]:
     settings["modes"]["solid"] = config.getint("Modes", "solid", fallback=1)
     settings["modes"]["blink"] = config.getint("Modes", "blink", fallback=2)
     settings["modes"]["flash"] = config.getint("Modes", "flash", fallback=3)
+    settings["modes"]["pulse"] = config.getint("Modes", "pulse", fallback=4)
     settings["brightness_min"] = config.getint("Brightness", "min", fallback=0)
     settings["brightness_max"] = config.getint(
         "Brightness", "max", fallback=150
     )
-    settings["leds"] = config.getint("Leds", "number", fallback=1)
 
     if settings_type == "daemon":
         settings["serial"]["port"] = config.get(

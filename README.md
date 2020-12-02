@@ -15,6 +15,12 @@ The hardware used is an Arduino connected to a Neopixel module. The project was 
 
 The firmware project is available at [hymnis/dsul-arduino](https://github.com/hymnis/dsul-arduino).
 
+## Firmware
+
+As both FW (firmware) and SW (software) needs to talk to each other, not all combinations of versions work. Make sure that the FW and SW versions are compatible with each other. The latest (stable) versions usually has the best support.
+
+- SW 0.3.0 works with FW 0.2.0
+
 
 ## Installation
 
@@ -70,7 +76,6 @@ As package: `dsul-cli [arguments]`
     --help                         Show help and usage information.
     -l, --list                     List acceptable values for color, brightness and mode.
     -c, --color <color>            Set color to given value (must be one of the predefined colors).
-    -i, --index <index>            LED to set color on. Default is 0 (all LEDs).
     -b, --brightness <brightness>  Set brightness to given value.
     -m, --mode <mode>              Set mode to given value (must be on of the predefined modes).
     -h, --host <host>              The hostname/address of the IPC server. [default: localhost]

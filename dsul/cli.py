@@ -77,9 +77,8 @@ class DsulCli:
         color = ""
         mode = ""
         brightness = ""
-        index = 0
         help_string = (
-            "dsul-cli --help -l -c <color> -i <index> -m <mode> "
+            "dsul-cli --help -l -c <color> -m <mode> "
             "-b <brightness> -h <host> -p <port> -s <socket> --version "
             "--verbose"
         )
@@ -88,14 +87,13 @@ class DsulCli:
         try:
             opts, args = getopt.getopt(  # pylint: disable=W0612
                 argv,
-                "lh:p:c:i:m:b:s:v",
+                "lh:p:c:m:b:s:v",
                 [
                     "help",
                     "list",
                     "host=",
                     "port=",
                     "color=",
-                    "index=",
                     "mode=",
                     "brightness=",
                     "socket=",
@@ -122,15 +120,6 @@ class DsulCli:
             elif opt in ("-c", "--color"):
                 color = arg
                 ready["color"] = True
-            elif opt in ("-i", "--index"):
-                if int(arg) <= self.settings["leds"]:
-                    index = int(arg)
-                else:
-                    self.logger.error(
-                        "Specified LED index is outside supported range (%s)"
-                        % arg
-                    )
-                    sys.exit(1)
             elif opt in ("-b", "--brightness"):
                 brightness = arg
                 ready["brightness"] = True
@@ -147,7 +136,8 @@ class DsulCli:
                 print(version_string)
                 sys.exit()
             elif opt in ("-v", "--verbose"):
-                self.logger.setLevel(logging.INFO)
+                if self.logger.level != logging.DEBUG:
+                    self.logger.setLevel(logging.INFO)
 
         if True not in ready.values():
             self.logger.error("Missing commands and/or arguments")
@@ -155,19 +145,18 @@ class DsulCli:
         else:
             for key in ready.keys():
                 if key == "color":
-                    self.set_color(color, index)
+                    self.set_color(color)
                 if key == "brightness":
                     self.set_brightness(brightness)
                 if key == "mode":
                     self.set_mode(mode)
 
-    def set_color(self, color, index=0) -> None:
+    def set_color(self, color) -> None:
         """Send command to set color."""
         if color in self.settings["colors"]:
             color_values = self.settings["colors"][color]
             command_value = (
-                f"{index}:{color_values[0]}:{color_values[1]}:"
-                f"{color_values[2]}"
+                f"{color_values[0]}:{color_values[1]}:{color_values[2]}"
             )
             self.sequence_done = False
             self.command_queue.append(
@@ -306,8 +295,6 @@ class DsulCli:
                         self.settings["brightness_min"] = int(val)
                     elif key == "brightness_max":
                         self.settings["brightness_max"] = int(val)
-                    elif key == "leds":
-                        self.settings["leds"] = int(val)
                 except ValueError:
                     pass
 

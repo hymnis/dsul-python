@@ -143,35 +143,28 @@ class DsulDaemon:
                 print(version_string)
                 sys.exit()
             elif opt in ("-v", "--verbose"):
-                self.logger.setLevel(logging.INFO)
-                verbose = logging.StreamHandler()
-                formatter = logging.Formatter("%(levelname)-8s %(message)s")
-                verbose.setLevel(logging.INFO)
-                verbose.setFormatter(formatter)
-                self.logger.addHandler(verbose)
+                if self.logger.level != logging.DEBUG:
+                    self.logger.setLevel(logging.INFO)
+                    verbose = logging.StreamHandler()
+                    formatter = logging.Formatter(
+                        "%(levelname)-8s %(message)s"
+                    )
+                    verbose.setLevel(logging.INFO)
+                    verbose.setFormatter(formatter)
+                    self.logger.addHandler(verbose)
 
     def update_settings(self) -> None:
         """Update setttings if needed."""
-        if self.settings["brightness_min"] != int(
-            self.device["brightness_min"]
-        ):
-            self.settings["brightness_min"] = int(
-                self.device["brightness_min"]
-            )
-        if self.settings["brightness_max"] != int(
-            self.device["brightness_max"]
-        ):
-            self.settings["brightness_max"] = int(
-                self.device["brightness_max"]
-            )
-        if self.settings["leds"] != int(self.device["leds"]):
-            self.settings["leds"] = int(self.device["leds"])
-        if self.current_color != self.device["current_color"][0]:
-            self.current_color = self.device["current_color"][0]
-        if self.current_brightness != self.device["current_brightness"]:
+        if self.device["brightness_min"]:
+            self.settings["brightness_min"] = self.device["brightness_min"]
+        if self.device["brightness_max"]:
+            self.settings["brightness_max"] = self.device["brightness_max"]
+        if self.device["current_color"]:
+            self.current_color = self.device["current_color"]
+        if self.device["current_brightness"]:
             self.current_brightness = self.device["current_brightness"]
-        if self.current_mode != int(self.device["current_mode"]):
-            self.current_mode = int(self.device["current_mode"])
+        if self.device["current_mode"]:
+            self.current_mode = self.device["current_mode"]
 
     def run(self) -> None:
         """Run the main loop of the application."""
@@ -258,7 +251,6 @@ class DsulDaemon:
 
             while not stop_event.is_set():
                 self.send_ping()
-                # time.sleep(60.0 - ((time.time() - starttime) % 60.0))
                 stop_event.wait(
                     timeout=60.0 - ((time.time() - starttime) % 60.0)
                 )
@@ -374,27 +366,47 @@ class DsulDaemon:
                 )
                 ll_match = re.search(r"ll(\d{3})", str(input_data))
                 lb_match = re.search(r"lb(\d{3}):(\d{3})", str(input_data))
-                cc_match = re.findall(r"cc(\d{3}):(\d*)", str(input_data))
+                cc_match = re.search(
+                    r"cc(\d{2})(\d{2})(\d{2})", str(input_data)
+                )
                 cb_match = re.search(r"cb(\d{3})", str(input_data))
                 cm_match = re.search(r"cm(\d{3})", str(input_data))
 
                 self.device["version"] = (
-                    f"{int(v_match[1])}."
-                    f"{int(v_match[2])}."
-                    f"{int(v_match[3])}"
-                )
-                self.device["leds"] = int(ll_match[1])
-                self.device["brightness_min"] = int(lb_match[1])
-                self.device["brightness_max"] = int(lb_match[2])
-                self.device["current_color"] = {}
-                for cc in cc_match:
-                    self.device["current_color"][int(cc[0])] = int(
-                        cc[1].strip() or 0
+                    (
+                        f"{int(v_match[1])}."
+                        f"{int(v_match[2])}."
+                        f"{int(v_match[3])}"
                     )
-                self.device["current_brightness"] = int(cb_match[1])
-                self.device["current_mode"] = int(cm_match[1])
+                    if v_match
+                    else None
+                )
+                self.device["leds"] = int(ll_match[1]) if ll_match else None
+                self.device["brightness_min"] = (
+                    int(lb_match[1]) if lb_match else None
+                )
+
+                self.device["brightness_max"] = (
+                    int(lb_match[2]) if lb_match else None
+                )
+                self.device["current_color"] = (
+                    (
+                        f"{int(cc_match[1])}:"
+                        f"{int(cc_match[2])}:"
+                        f"{int(cc_match[3])}"
+                    )
+                    if cc_match
+                    else None
+                )
+                self.device["current_brightness"] = (
+                    int(cb_match[1]) if cb_match else None
+                )
+                self.device["current_mode"] = (
+                    int(cm_match[1]) if cm_match else None
+                )
 
                 self.update_settings()
+                self.serial_verified = True
 
     # COMMAND HANDLING #
 
@@ -423,12 +435,13 @@ class DsulDaemon:
 
                     if command_item["want_reply"]:
                         self.get_serial_data()
-                except Exception:
+                except Exception as err:
                     self.logger.error("Sending serial command failed.")
                     self.logger.debug(
-                        f"Failed serial command: {command_item['command']}"
+                        f"Failed serial command: {command_item['command']}, "
+                        f"error: {err}"
                     )
-                    sys.exit(1)
+                    # sys.exit(1)  # don't exit on a send error
             else:
                 self.logger.error(
                     "Serial connection not active. Can't send commands."
@@ -494,13 +507,13 @@ class DsulDaemon:
     def send_color_command(self, value: str) -> bool:
         """Send command to set color."""
         try:
-            index, r, g, b = value.split(":")
-            self.logger.info(f'Setting color: "{r},{g},{b}" for "{index}"')
+            r, g, b = value.split(":")
+            self.logger.info(f'Setting color: "{r},{g},{b}"')
             self.current_color = value
             self.send_commands.append(
                 {
-                    "command": "+l{:03d}{:03d}{:03d}{:03d}#".format(
-                        int(index), int(r), int(g), int(b)
+                    "command": "+l{:03d}{:03d}{:03d}#".format(
+                        int(r), int(g), int(b)
                     ),
                     "want_reply": True,
                 }
@@ -590,7 +603,6 @@ class DsulDaemon:
             f"daemon={VERSION};"
             f"fw={self.device['version']};"
             f"modes={self.settings['modes']};"
-            f"leds={self.settings['leds']};"
             f"brightness_min={self.settings['brightness_min']};"
             f"brightness_max={self.settings['brightness_max']};"
             f"current_mode={self.current_mode};"
