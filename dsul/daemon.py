@@ -46,6 +46,7 @@ class DsulDaemon:
     current_mode = 0
     current_color = ""
     current_brightness = ""
+    current_dim = 0
 
     @no_type_check
     def __init__(self, argv) -> None:
@@ -91,7 +92,8 @@ class DsulDaemon:
             "DsulDaemon<>(ser=val, serial_active=val, "
             "serial_verified=val, ipc_active=val, pinger_active=val"
             "send_commands=val, device=val, logger=val, settings=val, "
-            "current_mode=val, current_color=val, current_brightness=val)"
+            "current_mode=val, current_color=val, current_brightness=val, "
+            "current_dim=val)"
         )
         return message
 
@@ -165,6 +167,8 @@ class DsulDaemon:
             self.current_brightness = self.device["current_brightness"]
         if self.device["current_mode"]:
             self.current_mode = self.device["current_mode"]
+        if self.device["current_dim"]:
+            self.current_dim = self.device["current_dim"]
 
     def run(self) -> None:
         """Run the main loop of the application."""
@@ -252,7 +256,7 @@ class DsulDaemon:
             while not stop_event.is_set():
                 self.send_ping()
                 stop_event.wait(
-                    timeout=60.0 - ((time.time() - starttime) % 60.0)
+                    timeout=30.0 - ((time.time() - starttime) % 30.0)
                 )
 
         self.logger.info("Pinger stopped")
@@ -371,6 +375,7 @@ class DsulDaemon:
                 )
                 cb_match = re.search(r"cb(\d{3})", str(input_data))
                 cm_match = re.search(r"cm(\d{3})", str(input_data))
+                cd_match = re.search(r"cd(\d{1})", str(input_data))
 
                 self.device["version"] = (
                     (
@@ -385,7 +390,6 @@ class DsulDaemon:
                 self.device["brightness_min"] = (
                     int(lb_match[1]) if lb_match else None
                 )
-
                 self.device["brightness_max"] = (
                     int(lb_match[2]) if lb_match else None
                 )
@@ -403,6 +407,9 @@ class DsulDaemon:
                 )
                 self.device["current_mode"] = (
                     int(cm_match[1]) if cm_match else None
+                )
+                self.device["current_dim"] = (
+                    int(cd_match[1]) if cd_match else None
                 )
 
                 self.update_settings()
@@ -468,6 +475,10 @@ class DsulDaemon:
                         valid = self.send_mode_command(
                             message_object.properties["value"]
                         )
+                    elif message_object.properties["key"] == "dim":
+                        valid = self.send_dim_command(
+                            int(message_object.properties["value"])
+                        )
 
                     message = (
                         f"{message_object.properties['key']}="
@@ -501,6 +512,8 @@ class DsulDaemon:
             self.send_color_command(self.current_color)
         elif self.current_brightness:
             self.send_brightness_command(self.current_brightness)
+        elif self.current_dim:
+            self.send_dim_command(int(self.current_dim))
 
     # SEND ACTIONS #
 
@@ -562,6 +575,25 @@ class DsulDaemon:
 
         return False
 
+    def send_dim_command(self, value: int) -> bool:
+        """Send command to set the dim mode."""
+        if value >= 0 or value <= 1:
+            self.logger.info(f'Setting dim mode: "{value}"')
+            self.current_dim = int(value)
+
+            self.send_commands.append(
+                {
+                    "command": "+d{:01d}#".format(self.current_dim),
+                    "want_reply": True,
+                }
+            )
+
+            return True
+        else:
+            self.logger.warning(f'Invalid argument: "{value}"')
+
+        return False
+
     def send_information_request(self) -> None:
         """Send request to device for information."""
         self.send_commands.append({"command": "-!#", "want_reply": True})
@@ -591,6 +623,8 @@ class DsulDaemon:
                 message = self.current_brightness
             elif message_object.properties["value"] == "mode":
                 message = str(self.current_mode)
+            elif message_object.properties["value"] == "dim":
+                message = str(self.current_dim)
         elif message_object.properties["key"] == "information":
             action = "OK"
             message = self.give_information()
@@ -608,6 +642,7 @@ class DsulDaemon:
             f"current_mode={self.current_mode};"
             f"current_brightness={self.current_brightness};"
             f"current_color={self.current_color};"
+            f"current_dim={self.current_dim};"
         )
 
 

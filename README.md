@@ -20,9 +20,12 @@ The firmware project is available at [hymnis/dsul-arduino](https://github.com/hy
 
 As both FW (firmware) and SW (software) needs to talk to each other, not all combinations of versions work. Make sure that the FW and SW versions are compatible with each other. The latest (stable) versions usually has the best support.
 
-**SW 0.3.0 works with:**
+**SW 0.3.0** works with:
 - FW 0.2.0
 - FW 0.2.1
+
+**SW 0.4.0** works with:
+- FW 0.3.0
 
 
 ## Installation
@@ -85,6 +88,12 @@ As package: `dsul-cli [arguments]`
     -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
     -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
 
+## Demo
+Starting the daemon and receiving a command from CLI application via IPC (TCP/IP), in verbose mode.
+![daemon_verbose](assets/daemon_verbose.gif)
+
+Sending a command to the daemon via IPC (TCP/IP) and getting response in verbose mode.
+![cli_verbose](assets/cli_verbose.gif)
 
 ## Development
 This is the basic flow for development on the project. Step 1-2 should only have to be run once, while 3-8 is the continuous development cycle.
