@@ -28,6 +28,7 @@ class DsulCli:
     current_color = "n/a"
     current_mode = "n/a"
     current_brightness = "n/a"
+    current_dim = "n/a"
 
     @no_type_check
     def __init__(self, argv) -> None:
@@ -67,7 +68,7 @@ class DsulCli:
         message = (
             "DsulCli<>(logger=val, settings=val, sequence_done=val, "
             "command_queue=val, waiting_for_reply=val, current_mode=val, "
-            "current_color=val, current_brightness=val)"
+            "current_color=val, current_brightness=val, current_dim=val)"
         )
         return message
 
@@ -77,9 +78,10 @@ class DsulCli:
         color = ""
         mode = ""
         brightness = ""
+        dim = ""
         help_string = (
             "dsul-cli --help -l -c <color> -m <mode> "
-            "-b <brightness> -h <host> -p <port> -s <socket> --version "
+            "-b <brightness> -d -u -h <host> -p <port> -s <socket> --version "
             "--verbose"
         )
         version_string = f"Version {VERSION}"
@@ -87,7 +89,7 @@ class DsulCli:
         try:
             opts, args = getopt.getopt(  # pylint: disable=W0612
                 argv,
-                "lh:p:c:m:b:s:v",
+                "lh:p:c:m:b:dus:v",
                 [
                     "help",
                     "list",
@@ -96,6 +98,8 @@ class DsulCli:
                     "color=",
                     "mode=",
                     "brightness=",
+                    "dim",
+                    "undim",
                     "socket=",
                     "version",
                     "verbose",
@@ -126,6 +130,12 @@ class DsulCli:
             elif opt in ("-m", "--mode"):
                 mode = arg
                 ready["mode"] = True
+            elif opt in ("-d", "--dim"):
+                dim = "1"
+                ready["dim"] = True
+            elif opt in ("-u", "--undim"):
+                dim = "0"
+                ready["dim"] = True
             elif opt in ("-p", "--port"):
                 self.settings["ipc"]["port"] = arg
             elif opt in ("-h", "--host"):
@@ -150,6 +160,8 @@ class DsulCli:
                     self.set_brightness(brightness)
                 if key == "mode":
                     self.set_mode(mode)
+                if key == "dim":
+                    self.set_dim(dim)
 
     def set_color(self, color) -> None:
         """Send command to set color."""
@@ -196,6 +208,17 @@ class DsulCli:
             )
         else:
             self.logger.error("Specified mode isn't supported (%s)" % mode)
+            sys.exit(1)
+
+    def set_dim(self, dim) -> None:
+        """Send command to toggle dim mode."""
+        if dim >= 0 or dim <= 1:
+            self.sequence_done = False
+            self.command_queue.append(
+                {"type": "command", "key": "dim", "value": dim}
+            )
+        else:
+            self.logger.error("Specified dim mode isn't supported (%s)" % dim)
             sys.exit(1)
 
     def perform_actions(self) -> None:
@@ -291,6 +314,8 @@ class DsulCli:
                         self.current_mode = val
                     elif key == "current_brightness":
                         self.current_brightness = val
+                    elif key == "current_dim":
+                        self.current_dim = val
                     elif key == "brightness_min":
                         self.settings["brightness_min"] = int(val)
                     elif key == "brightness_max":
@@ -322,6 +347,7 @@ class DsulCli:
         print(f"- color = {self.current_color}")
         print(f"- mode = {self.current_mode}")
         print(f"- brightness = {self.current_brightness}")
+        print(f"- dim = {self.current_dim}")
 
 
 if __name__ == "__main__":
