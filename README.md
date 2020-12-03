@@ -46,16 +46,14 @@ python -m pep517.build .
 pip install dist/dsul-<version>-py3-none-any.whl
 ```
 
+
 ## Configuration
 
-Both daemon and client use the same configuration file, `dsul.cfg`. This is a simple ini style configuration that contains the different colors, modes and brightness limits. It can also be used to define default settings for serial and IPC communication (these can be overridden using the command line arguments).
-
-If daemon and client are run on different machines, make sure the use the same definitions and limits for colors, brightness and modes.
+Both daemon and client calls the same method to get configuration settings. All settings have a default fallback but if a file named `.dsul.cfg` exists in the users home directory, it will be read and used. This is a simple ini style configuration that contains the different colors, modes and com port etc. Some of the settings can be overridden by arguments (as settings are read before the application arguments).
 
 
 ## Daemon
 This part handles communication with the hardware (serial connection) and allows clients to send commands (via IPC connection).
-
 
 As module: `python -m dsul.daemon [arguments]`  
 As package: `dsul-daemon [arguments]`
@@ -67,7 +65,7 @@ As package: `dsul-daemon [arguments]`
     -p, --port <port>         The port number used for the IPC server. [default: 5795]
     -s, --socket <socket>     The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
     -c, --comport <comport>   The com port. [default: /dev/ttyUSB0]
-    -b, --baudrate <baudrate> The baudrate to use with the com port. [default: 9600]
+    -b, --baudrate <baudrate> The baudrate to use with the com port. [default: 38400]
     -t, --timeout <timeout>   The connection timeout to use for com port (in seconds). [default: 1]
 
 
@@ -84,9 +82,12 @@ As package: `dsul-cli [arguments]`
     -c, --color <color>            Set color to given value (must be one of the predefined colors).
     -b, --brightness <brightness>  Set brightness to given value.
     -m, --mode <mode>              Set mode to given value (must be on of the predefined modes).
+    -d, --dim                      Turn on color dimming.
+    -u, --undim                    Turn off color dimming.
     -h, --host <host>              The hostname/address of the IPC server. [default: localhost]
     -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
     -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
+
 
 ## Demo
 Starting the daemon and receiving a command from CLI application via IPC (TCP/IP), in verbose mode.
@@ -94,6 +95,7 @@ Starting the daemon and receiving a command from CLI application via IPC (TCP/IP
 
 Sending a command to the daemon via IPC (TCP/IP) and getting response in verbose mode.
 ![cli_verbose](assets/cli_verbose.gif)
+
 
 ## Development
 This is the basic flow for development on the project. Step 1-2 should only have to be run once, while 3-8 is the continuous development cycle.
@@ -110,13 +112,16 @@ This is the basic flow for development on the project. Step 1-2 should only have
 ### Requirements
 As this repo uses [pre-commit](https://pre-commit.com/) that does linting and format checking, requirements in `requirements.development.txt`). [pre-commit](https://pre-commit.com/) is also one of the requirements and must be installed prior to commit, for it to work.
 
+### Formatting
+All python code should be formatted by `black`. If it's not it will be caught by the pre-commit hook. Includes must be sorted by `isort`.
+
+### Linting and checks
+To check the code itself we use `flake8`, `pylint` and `mypy`.
+
 ### Testing
 Tests are located in the _tests_ directory. They should be named according to format: `test_<module name>.py`
 
 To run all tests (with coverage report), use: `pytest` or if you only want to test a specific unittest module: `python -m unittest tests.test_<module name>`.
-
-### Formatting
-All python code should be formatted by `black`. If it's not it will be caught by the pre-commit hook.
 
 ### pre-commit
 Current configuration will lint and format check, mostly python, code, as well as check files for strings (like "TODO" and "DEBUG") and missed git merge markings.
