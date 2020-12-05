@@ -395,6 +395,7 @@ class DsulDaemon:
         cc_match = re.search(r"cc(\d{2})(\d{2})(\d{2})", str(data))
         cb_match = re.search(r"cb(\d{3})", str(data))
         cm_match = re.search(r"cm(\d{3})", str(data))
+        cd_match = re.search(r"cd(\d{1})", str(data))
 
         self.device["version"] = (
             (f"{int(v_match[1])}." f"{int(v_match[2])}." f"{int(v_match[3])}")
@@ -418,6 +419,7 @@ class DsulDaemon:
             int(cb_match[1]) if cb_match else None
         )
         self.device["current_mode"] = int(cm_match[1]) if cm_match else None
+        self.device["current_dim"] = int(cd_match[1]) if cd_match else None
 
         self.update_settings()
         self.serial_verified = True
@@ -603,6 +605,7 @@ class DsulDaemon:
 
     def send_information_request(self) -> None:
         """Send request to device for information."""
+        self.logger.info("Asking device for information")
         self.send_commands.append({"command": "-!#", "want_reply": True})
 
     def send_ping(self) -> None:

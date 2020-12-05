@@ -20,12 +20,12 @@ The firmware project is available at [hymnis/dsul-arduino](https://github.com/hy
 
 As both FW (firmware) and SW (software) needs to talk to each other, not all combinations of versions work. Make sure that the FW and SW versions are compatible with each other. The latest (stable) versions usually has the best support.
 
+**SW 0.4.x** works with:
+- FW 0.3.0
+
 **SW 0.3.0** works with:
 - FW 0.2.0
 - FW 0.2.1
-
-**SW 0.4.x** works with:
-- FW 0.3.0
 
 
 ## Installation
