@@ -7,7 +7,7 @@ import re
 import sys
 import threading
 import time
-from typing import Any, Dict, List, Union, no_type_check
+from typing import Any, Dict, List, no_type_check
 
 import serial  # type: ignore
 
@@ -42,6 +42,7 @@ class DsulDaemon:
     logger: Any = None
     device: Dict[str, Any] = {}
     ser: Any = None
+    serial_input_buffer = bytearray()
     send_commands: List[Dict[str, object]] = []
     current_mode = 0
     current_color = ""
@@ -304,11 +305,17 @@ class DsulDaemon:
                 "An error occured when de-initializing serial port."
             )
 
-    def read_serial(self) -> Union[str, bool]:
-        """Read data from serial connection."""
-        try:
-            incoming = bytearray()
+    def read_serial(self) -> str:
+        """Read and return data from serial port."""
+        i = self.serial_input_buffer.find(b"#")
+        if i >= 0:
+            # fmt: off
+            r = self.serial_input_buffer[:i + 1]
+            self.serial_input_buffer = self.serial_input_buffer[i + 1:]
+            # fmt: on
+            return str(r.decode())
 
+        try:
             while True:
                 i = max(1, min(2048, self.ser.in_waiting))
                 data = self.ser.read(i)
@@ -316,104 +323,85 @@ class DsulDaemon:
 
                 if i >= 0:
                     # fmt: off
-                    r = incoming + data[:i + 1]
-                    incoming[0:] = data[i + 1:]
+                    r = self.serial_input_buffer + data[:i + 1]
+                    self.serial_input_buffer[0:] = data[i + 1:]
                     # fmt: on
+                    self.serial_input_buffer = bytearray()
                     return str(r.decode())
                 else:
-                    incoming.extend(data)
+                    self.serial_input_buffer.extend(data)
         except serial.serialutil.SerialException:
-            return False
+            return ""
 
     def write_serial(self, message: str) -> bool:
-        """Write data to the serial connection."""
+        """Write data to the serial port."""
         try:
             self.ser.write(message.encode())
             return True
         except serial.serialutil.SerialException:
             return False
 
-    def get_serial_data(self) -> None:
-        """Get serial data and process the input."""
-        in_data = self.read_serial()
+    def get_serial_input(self) -> None:
+        """Get serial input and process it."""
+        input_data = self.read_serial()
 
-        if in_data is not None:
-            self.handle_serial_input(in_data)
-
-    def handle_serial_input(self, input_data: Union[str, bool]) -> None:
-        """Handle serial commands and input data."""
-        if input_data:
+        if input_data is not None or input_data != "":
             self.logger.debug(f"<S : {input_data}")
+            input_length = len(input_data)
 
-            if len(input_data) == 3:  # type: ignore
-                read_command = True
-                read_data = False
+            if input_length == 3:
+                self.handle_serial_command(input_data)
             else:
-                read_command = False
-                read_data = True
+                self.handle_serial_data(input_data)
 
-            if read_command:
-                if input_data == "-!#":  # resend/request data
-                    self.logger.info("Serial Response: Resend/Request")
-                elif input_data == "-?#":  # ping
-                    self.logger.info("Serial Response: Ping")
-                    self.send_ok()
-                elif input_data == "+!#":  # ok
-                    self.logger.info("Serial Response: OK")
-                elif input_data == "+?#":  # unknown/error
-                    self.logger.info("Serial Response: Unknown/Error")
+    def handle_serial_command(self, command: str) -> None:
+        """Handle serial command."""
+        if command == "-!#":  # resend/request data
+            self.logger.info("Serial Response: Resend/Request")
+        elif command == "-?#":  # ping
+            self.logger.info("Serial Response: Ping")
+            self.send_ok()
+        elif command == "+!#":  # ok
+            self.logger.info("Serial Response: OK")
+        elif command == "+?#":  # unknown/error
+            self.logger.info("Serial Response: Unknown/Error")
 
-                self.serial_verified = True
-            elif read_data:
-                v_match = re.search(
-                    r"v(\d{3})\.(\d{3}).(\d{3})", str(input_data)
-                )
-                ll_match = re.search(r"ll(\d{3})", str(input_data))
-                lb_match = re.search(r"lb(\d{3}):(\d{3})", str(input_data))
-                cc_match = re.search(
-                    r"cc(\d{2})(\d{2})(\d{2})", str(input_data)
-                )
-                cb_match = re.search(r"cb(\d{3})", str(input_data))
-                cm_match = re.search(r"cm(\d{3})", str(input_data))
-                cd_match = re.search(r"cd(\d{1})", str(input_data))
+        self.serial_verified = True
 
-                self.device["version"] = (
-                    (
-                        f"{int(v_match[1])}."
-                        f"{int(v_match[2])}."
-                        f"{int(v_match[3])}"
-                    )
-                    if v_match
-                    else None
-                )
-                self.device["leds"] = int(ll_match[1]) if ll_match else None
-                self.device["brightness_min"] = (
-                    int(lb_match[1]) if lb_match else None
-                )
-                self.device["brightness_max"] = (
-                    int(lb_match[2]) if lb_match else None
-                )
-                self.device["current_color"] = (
-                    (
-                        f"{int(cc_match[1])}:"
-                        f"{int(cc_match[2])}:"
-                        f"{int(cc_match[3])}"
-                    )
-                    if cc_match
-                    else None
-                )
-                self.device["current_brightness"] = (
-                    int(cb_match[1]) if cb_match else None
-                )
-                self.device["current_mode"] = (
-                    int(cm_match[1]) if cm_match else None
-                )
-                self.device["current_dim"] = (
-                    int(cd_match[1]) if cd_match else None
-                )
+    def handle_serial_data(self, data: str) -> None:
+        """Handle serial data."""
+        v_match = re.search(r"v(\d{3})\.(\d{3}).(\d{3})", str(data))
+        ll_match = re.search(r"ll(\d{3})", str(data))
+        lb_match = re.search(r"lb(\d{3}):(\d{3})", str(data))
+        cc_match = re.search(r"cc(\d{2})(\d{2})(\d{2})", str(data))
+        cb_match = re.search(r"cb(\d{3})", str(data))
+        cm_match = re.search(r"cm(\d{3})", str(data))
 
-                self.update_settings()
-                self.serial_verified = True
+        self.device["version"] = (
+            (f"{int(v_match[1])}." f"{int(v_match[2])}." f"{int(v_match[3])}")
+            if v_match
+            else None
+        )
+        self.device["leds"] = int(ll_match[1]) if ll_match else None
+        self.device["brightness_min"] = int(lb_match[1]) if lb_match else None
+
+        self.device["brightness_max"] = int(lb_match[2]) if lb_match else None
+        self.device["current_color"] = (
+            (
+                f"{int(cc_match[1])}:"
+                f"{int(cc_match[2])}:"
+                f"{int(cc_match[3])}"
+            )
+            if cc_match
+            else None
+        )
+        self.device["current_brightness"] = (
+            int(cb_match[1]) if cb_match else None
+        )
+        self.device["current_mode"] = int(cm_match[1]) if cm_match else None
+
+        self.update_settings()
+        self.serial_verified = True
 
     # COMMAND HANDLING #
 
@@ -441,7 +429,7 @@ class DsulDaemon:
                         time.sleep(1)
 
                     if command_item["want_reply"]:
-                        self.get_serial_data()
+                        self.get_serial_input()
                 except Exception as err:
                     self.logger.error("Sending serial command failed.")
                     self.logger.debug(
