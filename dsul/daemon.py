@@ -52,8 +52,6 @@ class DsulDaemon:
     @no_type_check
     def __init__(self, argv) -> None:
         """Initialize the class."""
-        print("[] DSUL: Daemon")
-
         if DEBUG:
             logformat = (
                 "[%(asctime)s] %(levelname)-8s {%(pathname)s:%(lineno)d} "
