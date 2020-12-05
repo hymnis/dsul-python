@@ -1,11 +1,12 @@
+os: linux
+dist: bionic
+language: python
 branches:
   only:
     - master
 env:
   global:
     - CC_TEST_REPORTER_ID=1c104053bc2f9addd05159a78da700015ff8e6ea3f85bd613745ace98914e890
-dist: bionic
-language: python
 python:
 - 3.6
 - 3.7
