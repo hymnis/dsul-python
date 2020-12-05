@@ -24,7 +24,7 @@ As both FW (firmware) and SW (software) needs to talk to each other, not all com
 - FW 0.2.0
 - FW 0.2.1
 
-**SW 0.4.0** works with:
+**SW 0.4.x** works with:
 - FW 0.3.0
 
 
@@ -67,6 +67,10 @@ As package: `dsul-daemon [arguments]`
     -c, --comport <comport>   The com port. [default: /dev/ttyUSB0]
     -b, --baudrate <baudrate> The baudrate to use with the com port. [default: 38400]
     -t, --timeout <timeout>   The connection timeout to use for com port (in seconds). [default: 1]
+    --save                    Save (non-default) settings to config file.
+    --update                  Update config file with new settings.
+    --version                 Show current version.
+    --verbose                 Show more detailed output.
 
 
 ## CLI client
@@ -87,6 +91,10 @@ As package: `dsul-cli [arguments]`
     -h, --host <host>              The hostname/address of the IPC server. [default: localhost]
     -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
     -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
+    --save                         Save (non-default) settings to config file.
+    --update                       Update config file with new settings.
+    --version                      Show current version.
+    --verbose                      Show more detailed output.
 
 
 ## Demo

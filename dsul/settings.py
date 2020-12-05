@@ -4,16 +4,15 @@ import configparser
 from pathlib import Path
 from typing import Any, Dict
 
+_config_file = Path(str(Path.home())) / ".dsul.cfg"
+
 
 def get_settings(settings_type: str) -> Dict[str, Any]:
-    """Get settings from config file."""
-    home = str(Path.home())
-    config_file = Path(home) / ".dsul.cfg"
-
+    """Get settings from config file or default values."""
     config = configparser.RawConfigParser()
 
-    if config_file.exists():
-        config.read(config_file)
+    if _config_file.exists():
+        config.read(_config_file)
 
     settings: Dict[str, Any] = {
         "ipc": {},
@@ -26,8 +25,8 @@ def get_settings(settings_type: str) -> Dict[str, Any]:
     }
 
     settings["ipc"]["host"] = config.get("IPC", "host", fallback="localhost")
-    settings["ipc"]["port"] = config.getint("IPC", "port", fallback=5795)
-    settings["socket"] = config.get("IPC", "socket", fallback="")
+    settings["ipc"]["port"] = config.get("IPC", "port", fallback="5795")
+    settings["ipc"]["socket"] = config.get("IPC", "socket", fallback="")
     settings["modes"]["solid"] = config.getint("Modes", "solid", fallback=1)
     settings["modes"]["blink"] = config.getint("Modes", "blink", fallback=2)
     settings["modes"]["flash"] = config.getint("Modes", "flash", fallback=3)
@@ -41,10 +40,10 @@ def get_settings(settings_type: str) -> Dict[str, Any]:
         settings["serial"]["port"] = config.get(
             "Serial", "port", fallback="/dev/ttyUSB0"
         )
-        settings["serial"]["baudrate"] = config.getint(
-            "Serial", "baudrate", fallback=38400
+        settings["serial"]["baudrate"] = config.get(
+            "Serial", "baudrate", fallback="38400"
         )
-        settings["serial"]["timeout"] = config.getint(
+        settings["serial"]["timeout"] = config.get(
             "Serial", "timeout", fallback=None
         )
     elif settings_type == "cli":
@@ -85,17 +84,37 @@ def get_settings(settings_type: str) -> Dict[str, Any]:
     return settings
 
 
-def write_settings(settings: Dict[str, Any]) -> None:
-    """Write settings to config file."""
-    home = str(Path.home())
-    config_file = Path(home) / ".dsul.cfg"
-
+def write_settings(
+    settings: Dict[str, Any], settings_type: str, update: bool
+) -> None:
+    """Write settings to config file, either updating or creating a new one."""
+    default = get_settings(settings_type)
     config = configparser.RawConfigParser()
 
-    if config_file.exists():
-        config.read(config_file)
+    if update and _config_file.exists():
+        config.read(_config_file)
 
-    # TODO: set values from 'settings' to config object
+    ipc_diff = {
+        k: settings["ipc"][k]
+        for k, _ in set(settings["ipc"].items()) - set(default["ipc"].items())
+    }
+    if ipc_diff:
+        if "IPC" not in config.sections():
+            config.add_section("IPC")
+        for diff_key, diff_value in ipc_diff.items():
+            config.set("IPC", diff_key, diff_value)
 
-    with open(config_file, "w") as file_handle:
+    if settings_type == "daemon":
+        serial_diff = {
+            k: settings["serial"][k]
+            for k, _ in set(settings["serial"].items())
+            - set(default["serial"].items())
+        }
+        if serial_diff:
+            if "Serial" not in config.sections():
+                config.add_section("Serial")
+            for diff_key, diff_value in serial_diff.items():
+                config.set("Serial", diff_key, diff_value)
+
+    with open(_config_file, "w") as file_handle:
         config.write(file_handle)
