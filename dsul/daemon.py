@@ -52,8 +52,6 @@ class DsulDaemon:
     @no_type_check
     def __init__(self, argv) -> None:
         """Initialize the class."""
-        print("[] DSUL: Daemon")
-
         if DEBUG:
             logformat = (
                 "[%(asctime)s] %(levelname)-8s {%(pathname)s:%(lineno)d} "
@@ -102,9 +100,10 @@ class DsulDaemon:
 
     def read_arguments(self, argv) -> None:  # noqa
         """Parse command line arguments."""
+        ready = {}
         help_string = (
             "dsul-daemon --help -h <host> -p <port> -s <socket> -c <com port> "
-            "-b <baudrate> --version --verbose"
+            "-b <baudrate> --save --update --version --verbose"
         )
         version_string = f"Version {VERSION}"
 
@@ -120,6 +119,8 @@ class DsulDaemon:
                     "comport=",
                     "baudrate=",
                     "socket=",
+                    "save",
+                    "update",
                     "version",
                     "verbose",
                 ],
@@ -137,11 +138,15 @@ class DsulDaemon:
             elif opt in ("-p", "--port"):
                 self.settings["ipc"]["port"] = int(arg)
             elif opt in ("-s", "--socket"):
-                self.settings["socket"] = arg
+                self.settings["ipc"]["socket"] = arg
             elif opt in ("-c", "--comport"):
                 self.settings["serial"]["port"] = arg
             elif opt in ("-b", "--baudrate"):
                 self.settings["serial"]["baudrate"] = int(arg)
+            elif opt == "--save":
+                ready["save"] = True
+            elif opt == "--update":
+                ready["update"] = True
             elif opt == "--version":
                 print(version_string)
                 sys.exit()
@@ -155,6 +160,20 @@ class DsulDaemon:
                     verbose.setLevel(logging.INFO)
                     verbose.setFormatter(formatter)
                     self.logger.addHandler(verbose)
+
+            for key in ready.keys():
+                if key == "save":
+                    self.logger.info("Saving settings to config file")
+                    settings.write_settings(
+                        self.settings, "daemon", update=False
+                    )
+                    sys.exit()
+                if key == "update":
+                    self.logger.info("Updating settings in config file")
+                    settings.write_settings(
+                        self.settings, "daemon", update=True
+                    )
+                    sys.exit()
 
     def update_settings(self) -> None:
         """Update setttings if needed."""
@@ -220,14 +239,14 @@ class DsulDaemon:
 
     def ipc_process(self, t_index, stop_event) -> None:
         """Handle IPC communication."""
-        if self.settings["socket"]:
-            if self.settings["socket"] == "":
+        if self.settings["ipc"]["socket"]:
+            if self.settings["ipc"]["socket"] == "":
                 sys.exit(20)
-            server_address = self.settings["socket"]
+            server_address = self.settings["ipc"]["socket"]
         else:
             server_address = (
                 self.settings["ipc"]["host"],
-                self.settings["ipc"]["port"],
+                int(self.settings["ipc"]["port"]),
             )
         self.logger.info(f"IPC server starting ({server_address})")
 
@@ -273,7 +292,7 @@ class DsulDaemon:
                     f"({self.settings['serial']['port']})"
                 )
                 self.ser.port = self.settings["serial"]["port"]
-                self.ser.baudrate = self.settings["serial"]["baudrate"]
+                self.ser.baudrate = int(self.settings["serial"]["baudrate"])
                 self.ser.timeout = self.settings["serial"]["timeout"]
                 self.ser.open()
                 self.serial_active = True

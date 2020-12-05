@@ -33,8 +33,6 @@ class DsulCli:
     @no_type_check
     def __init__(self, argv) -> None:
         """Initialize the class."""
-        print("[] DSUL: CLI")
-
         if DEBUG:
             logformat = (
                 "[%(asctime)s] %(levelname)-8s {%(pathname)s:%(lineno)d} "
@@ -54,6 +52,7 @@ class DsulCli:
 
         self.settings: Dict[str, Any] = settings.get_settings("cli")
         self.read_argument(argv)
+        self.logger.info("Requesting server information")
         self.requst_server_information()
         self.perform_actions()
 
@@ -81,8 +80,8 @@ class DsulCli:
         dim = ""
         help_string = (
             "dsul-cli --help -l -c <color> -m <mode> "
-            "-b <brightness> -d -u -h <host> -p <port> -s <socket> --version "
-            "--verbose"
+            "-b <brightness> -d -u -h <host> -p <port> -s <socket> --save "
+            "--update --version --verbose"
         )
         version_string = f"Version {VERSION}"
 
@@ -101,6 +100,8 @@ class DsulCli:
                     "dim",
                     "undim",
                     "socket=",
+                    "save",
+                    "update",
                     "version",
                     "verbose",
                 ],
@@ -115,6 +116,7 @@ class DsulCli:
                 sys.exit()
             elif opt in ("-l", "--list"):
                 try:
+                    self.logger.info("Requesting server information")
                     self.requst_server_information()
                     self.perform_actions()
                 except Exception:
@@ -141,7 +143,11 @@ class DsulCli:
             elif opt in ("-h", "--host"):
                 self.settings["ipc"]["host"] = arg
             elif opt in ("-s", "--socket"):
-                self.settings["socket"] = arg
+                self.settings["ipc"]["socket"] = arg
+            elif opt == "--save":
+                ready["save"] = True
+            elif opt == "--update":
+                ready["update"] = True
             elif opt == "--version":
                 print(version_string)
                 sys.exit()
@@ -162,6 +168,14 @@ class DsulCli:
                     self.set_mode(mode)
                 if key == "dim":
                     self.set_dim(dim)
+                if key == "save":
+                    self.logger.info("Saving settings to config file")
+                    settings.write_settings(self.settings, "cli", update=False)
+                    sys.exit()
+                if key == "update":
+                    self.logger.info("Updating settings in config file")
+                    settings.write_settings(self.settings, "cli", update=True)
+                    sys.exit()
 
     def set_color(self, color) -> None:
         """Send command to set color."""
@@ -230,12 +244,12 @@ class DsulCli:
         """Send IPC call to daemon."""
         try:
             # Send command to daemon
-            if self.settings["socket"]:
-                server_address = self.settings["socket"]
+            if self.settings["ipc"]["socket"]:
+                server_address = self.settings["ipc"]["socket"]
             else:
                 server_address = (
                     self.settings["ipc"]["host"],
-                    self.settings["ipc"]["port"],
+                    int(self.settings["ipc"]["port"]),
                 )
 
             user_input = [
@@ -270,11 +284,11 @@ class DsulCli:
         value = value.strip()
 
         if key == "OK":
-            self.logger.info("Success")
+            self.logger.info("Reply: OK")
             self.parse_response_value(value)
             self.sequence_done = True
         elif key == "NOK":
-            self.logger.info("Not OK")
+            self.logger.info("Reply: Not OK")
             self.parse_response_value(value)
             self.sequence_done = True
         elif key == "ACK":
