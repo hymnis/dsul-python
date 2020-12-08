@@ -16,16 +16,10 @@ The hardware used is an Arduino connected to a NeoPixel module. The project was 
 
 The firmware project is available at [hymnis/dsul-arduino](https://github.com/hymnis/dsul-arduino).
 
+
 ## Firmware
 
-As both FW (firmware) and SW (software) needs to talk to each other, not all combinations of versions work. Make sure that the FW and SW versions are compatible with each other. The latest (stable) versions usually has the best support.
-
-**SW 0.4.x** works with:
-- FW 0.3.0
-
-**SW 0.3.0** works with:
-- FW 0.2.0
-- FW 0.2.1
+As both FW (firmware) and SW (software) needs to talk to each other, not all combinations of versions work. Make sure that the FW and SW versions are compatible with each other. The latest (stable) versions usually has the best support. For more information about compatibility, see the [Firmware](https://github.com/hymnis/dsul-python/wiki/Firmware) wiki page.
 
 
 ## Installation
@@ -49,7 +43,7 @@ pip install dist/dsul-<version>-py3-none-any.whl
 
 ## Configuration
 
-Both daemon and client calls the same method to get configuration settings. All settings have a default fallback but if a file named `.dsul.cfg` exists in the users home directory, it will be read and used. This is a simple ini style configuration that contains the different colors, modes and com port etc. Some of the settings can be overridden by arguments (as settings are read before the application arguments).
+Both daemon and client calls the same method to get configuration settings. All settings have a default fallback but if a file named `.dsul.cfg` exists in the users home directory, it will be read and used. This is a simple ini style configuration that contains the different colors, modes and COM port etc. Some of the settings can be overridden by arguments (as settings are read before the application arguments).
 
 
 ## Daemon
@@ -61,16 +55,16 @@ As package: `dsul-daemon [arguments]`
 ### Options
 
     --help                    Show help and usage information.
-    -h, --host <host>         The hostname/address to expose IPC server on. [default: localhost]
-    -p, --port <port>         The port number used for the IPC server. [default: 5795]
-    -s, --socket <socket>     The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
-    -c, --comport <comport>   The com port. [default: /dev/ttyUSB0]
-    -b, --baudrate <baudrate> The baudrate to use with the com port. [default: 38400]
-    -t, --timeout <timeout>   The connection timeout to use for com port (in seconds). [default: 1]
     --save                    Save (non-default) settings to config file.
     --update                  Update config file with new settings.
     --version                 Show current version.
-    --verbose                 Show more detailed output.
+    -h, --host <host>         The hostname/address to expose IPC server on. [default: localhost]
+    -p, --port <port>         The port number used for the IPC server. [default: 5795]
+    -s, --socket <socket>     The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
+    -c, --comport <comport>   The COM port to use. [default: /dev/ttyUSB0]
+    -b, --baudrate <baudrate> The baudrate to use with the COM port. [default: 38400]
+    -t, --timeout <timeout>   The connection timeout to use for COM port (in seconds). [default: 1]
+    -v, --verbose             Show more detailed output.
 
 
 ## CLI client
@@ -82,6 +76,9 @@ As package: `dsul-cli [arguments]`
 ### Options
 
     --help                         Show help and usage information.
+    --save                         Save (non-default) settings to config file.
+    --update                       Update config file with new settings.
+    --version                      Show current version.
     -l, --list                     List acceptable values for color, brightness and mode.
     -c, --color <color>            Set color to given value (must be one of the predefined colors).
     -b, --brightness <brightness>  Set brightness to given value.
@@ -91,10 +88,7 @@ As package: `dsul-cli [arguments]`
     -h, --host <host>              The hostname/address of the IPC server. [default: localhost]
     -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
     -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
-    --save                         Save (non-default) settings to config file.
-    --update                       Update config file with new settings.
-    --version                      Show current version.
-    --verbose                      Show more detailed output.
+    -v, --verbose                  Show more detailed output.
 
 
 ## Demo

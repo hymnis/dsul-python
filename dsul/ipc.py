@@ -60,6 +60,8 @@ def create_request_handler(server=None):
     """Create request handler with given message handler."""
 
     class ThreadedRequestHandler(socketserver.BaseRequestHandler):
+        """Request handler class for threaded servers."""
+
         def handle(self):
             """Handle received message and send back response."""
             sock = self.request

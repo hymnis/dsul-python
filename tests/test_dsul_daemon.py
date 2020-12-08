@@ -65,10 +65,10 @@ class DsulDaemonTest(unittest.TestCase):
         # Start IPC server in a thread
         ipc_stop = threading.Event()
         ipc_thread = threading.Thread(
-            target=self.dd.ipc_process, daemon=True, args=(1, ipc_stop)
+            target=self.dd.ipc_process, daemon=True, args=(ipc_stop,)
         )
         ipc_thread.start()
-        time.sleep(1)  # wait for server to start properly
+        time.sleep(2)  # wait for server to start properly
 
         # Verify the IPC server starts
         is_open = port_open(self.ipc_host, self.ipc_port)

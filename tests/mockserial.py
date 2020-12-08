@@ -5,7 +5,7 @@ Based on the work of D. Thiebaut.
 """
 
 
-class serialutil:
+class serialutil:  # pylint: disable=C0103,R0903
     """Mocked class for utils and exceptions."""
 
     class SerialException(Exception):
@@ -14,10 +14,10 @@ class serialutil:
         print("[E] A serial error occured. (mocked serial used)")
 
 
-class Serial:
+class Serial:  # pylint: disable=R0902
     """Mock serial class, for testing."""
 
-    def __init__(
+    def __init__(  # pylint: disable=R0913
         self,
         port="/dev/ttyUSB0",
         baudrate=9600,
@@ -40,7 +40,7 @@ class Serial:
         self.xonxoff = xonxoff
         self.rtscts = rtscts
         self.dsrdtr = dsrdtr
-        self.is_open = False
+        self._is_open = False
         self._out_data = b""
         self._in_data = b""
 
@@ -60,43 +60,44 @@ class Serial:
         """Return number for bytes in the out buffer."""
         return len(self._out_data)
 
+    @property
     def is_open(self):
         """Return status for port."""
-        return self.is_open
+        return self._is_open
 
     def open(self):
         """Open the port."""
-        self.is_open = True
+        self._is_open = True
 
     def close(self):
         """Close the port."""
-        self.is_open = False
+        self._is_open = False
 
     def write(self, string):
         """Write characters."""
         self._out_data += string
 
-    def read(self, n=1):
+    def read(self, number=1):
         """
         Read n characters and return.
 
         The characters are read from the string _data.
         """
-        s = self._in_data[0:n]
-        self._in_data = self._in_data[n:]
-        return s
+        serial_string = self._in_data[0:number]
+        self._in_data = self._in_data[number:]
+        return serial_string
 
     def readline(self):
         r"""Read characters until \n is found."""
-        returnIndex = self._in_data.index("\n")
+        return_index = self._in_data.index("\n")
         # fmt: off
-        if returnIndex != -1:
-            s = self._in_data[0:returnIndex + 1]
-            self._in_data = self._in_data[returnIndex + 1:]
-            return bytes(s, encoding="utf-8")
-        else:
-            return b""
+        if return_index != -1:
+            serial_string = self._in_data[0:return_index + 1]
+            self._in_data = self._in_data[return_index + 1:]
+            return bytes(serial_string, encoding="utf-8")
         # fmt: on
+
+        return b""
 
     def set_in_data(self, in_data):
         """Set the _in_data variable data (data read from "serial port")."""
