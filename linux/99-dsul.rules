@@ -1,0 +1,1 @@
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ACTION=="add", SYMLINK+="dsul", TAG+="systemd", ENV{SYSTEMD_WANTS}+="dsul.service"

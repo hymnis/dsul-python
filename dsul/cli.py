@@ -57,7 +57,7 @@ class DsulCli:
         self.settings = settings.get_settings("cli")
         self.__read_arguments()
         self.logger.info("Requesting server information")
-        self.requst_server_information()
+        self.__requst_server_information()
         self.perform_actions()
 
     def __missing__(self, key) -> str:
@@ -184,7 +184,7 @@ class DsulCli:
         if args.socket:
             self.settings["ipc"]["socket"] = args.socket
         if args.list:
-            self.requst_server_information()
+            self.__requst_server_information()
             self.list_information()
             sys.exit()
         if args.save:
@@ -305,7 +305,7 @@ class DsulCli:
             with ipc.Client(server_address) as client:
                 response = client.send(objects)
             self.logger.debug("Received objects: %s", response)
-            self.handle_response(response)
+            self.__handle_response(response)
         except KeyError:
             self.logger.error("Key error")
             sys.exit(1)
@@ -316,7 +316,7 @@ class DsulCli:
             self.logger.error("IPC connection was refused")
             sys.exit(2)
 
-    def handle_response(self, response) -> None:
+    def __handle_response(self, response) -> None:
         """Handle the response from daemon."""
         response = response[0].text[0]
         key, value = re.split(r",", response, 1)
@@ -325,12 +325,12 @@ class DsulCli:
 
         if key in ("OK", "NOK"):
             self.logger.info("Reply: %s", key)
-            self.parse_response_value(value)
+            self.__parse_response_value(value)
             self.sequence_done = True
         elif key == "ACK":
-            self.handle_response_ack(value)
+            self.__handle_response_ack(value)
 
-    def handle_response_ack(self, value: str) -> None:
+    def __handle_response_ack(self, value: str) -> None:
         """Handle ACK response."""
         if value == "No serial connection":
             self.logger.warning("Server can't connect to device")
@@ -351,17 +351,17 @@ class DsulCli:
 
         self.sequence_done = True
 
-    def parse_response_value(self, value: str) -> None:
+    def __parse_response_value(self, value: str) -> None:
         """Parse the response value."""
         if self.waiting_for_reply:
             self.waiting_for_reply = False
 
             for item in value.split(";"):
-                self.update_values(item)
+                self.__update_values(item)
         else:
             self.logger.debug("Received unexpected data: %s", value)
 
-    def update_values(self, item: str) -> None:
+    def __update_values(self, item: str) -> None:
         """Update values based on response."""
         try:
             key, val = item.split("=")
@@ -383,7 +383,7 @@ class DsulCli:
         except ValueError as err:
             self.logger.debug("Error while updating values. (error: %s)", err)
 
-    def requst_server_information(self) -> None:
+    def __requst_server_information(self) -> None:
         """Request information from server; settings, limits etc."""
         self.sequence_done = False
         self.waiting_for_reply = True

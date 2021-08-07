@@ -1,5 +1,12 @@
 ---
 version: "2"
+checks:
+  method-complexity:
+    config:
+      threshold: 10
+  file-lines:
+    config:
+      threshold: 500
 exclude_patterns:
   - .venv/
   - scripts/

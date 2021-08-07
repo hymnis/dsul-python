@@ -1,0 +1,18 @@
+[Unit]
+Description=DSUL service
+BindsTo=dev-dsul.device
+After=dev-dsul.device
+
+[Service]
+Type=exec
+Restart=always
+
+# with system environment (libraries installed system wide)
+ExecStart=/usr/bin/python -m dsul.daemon -c /dev/dsul
+
+# with virtual environment (libraries installed in virtual environment)
+WorkingDirectory=path/to/dsul-python
+ExecStart=path/to/dsul-python/.venv/bin/python -m dsul.daemon -c /dev/dsul
+
+[Install]
+WantedBy=multi-user.target
