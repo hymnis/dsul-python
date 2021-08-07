@@ -133,6 +133,6 @@ Look in `.pre-commig-config.yaml` for exact order of tasks and their settings.
 ## Acknowledgements
 
 - `ipc` module is based on the work of Dan Krause.  
-   Check it out at: [https://gist.github.com/dankrause/9607475](https://gist.github.com/dankrause/9607475)
+  Check it out at: [https://gist.github.com/dankrause/9607475](https://gist.github.com/dankrause/9607475)
 - `mockserial` module is based on the work of D. Thiebaut.  
   Check it out at: [http://www.science.smith.edu/dftwiki/index.php/PySerial_Simulator](http://www.science.smith.edu/dftwiki/index.php/PySerial_Simulator)

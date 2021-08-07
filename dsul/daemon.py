@@ -72,7 +72,7 @@ class DsulDaemon:  # pylint: disable=R0902
             level=loglevel,
             filename=logfile,
             format=logformat,
-            datefmt="%H:%M:%S",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         self.logger = logging.getLogger(__name__)
         self.logger.info("DsulDaemon initializing.")

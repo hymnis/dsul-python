@@ -50,7 +50,7 @@ class DsulCli:
         logging.basicConfig(
             level=loglevel,
             format=logformat,
-            datefmt="%H:%M:%S",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         self.logger = logging.getLogger(__name__)
 
