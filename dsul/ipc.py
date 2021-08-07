@@ -1,7 +1,7 @@
 """IPC module for both server and client."""
 
 #   Copyright 2017 Dan Krause
-#   Modified and updated by hymnis, 2020
+#   Modified and updated 2020 by hymnis
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -60,6 +60,8 @@ def create_request_handler(server=None):
     """Create request handler with given message handler."""
 
     class ThreadedRequestHandler(socketserver.BaseRequestHandler):
+        """Request handler class for threaded servers."""
+
         def handle(self):
             """Handle received message and send back response."""
             sock = self.request
@@ -142,7 +144,7 @@ class Message:
 
     @staticmethod
     def _get_args():
-        """Retrurn and empty tuple of list and dictionary."""
+        """Return an empty tuple of list and dictionary."""
         return [], {}
 
     def __repr__(self):

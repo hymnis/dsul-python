@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """DSUL - Disturb State USB Light : Daemon application."""
 
-import getopt
+import argparse
 import logging
 import re
 import sys
@@ -32,25 +32,29 @@ sys.excepthook = exception_handler
 
 def main():
     """Run the program."""
-    APP = DsulDaemon(sys.argv[1:])
-    APP.run()
+    application = DsulDaemon()
+    application.run()
 
 
-class DsulDaemon:
+class DsulDaemon:  # pylint: disable=R0902
     """DSUL Daemon application class."""
 
     logger: Any = None
     device: Dict[str, Any] = {}
     ser: Any = None
+    serial_active = False
+    serial_verified = False
     serial_input_buffer = bytearray()
     send_commands: List[Dict[str, object]] = []
+    ipc_active = False
+    pinger_active = False
     current_mode = 0
     current_color = ""
     current_brightness = ""
     current_dim = 0
 
     @no_type_check
-    def __init__(self, argv) -> None:
+    def __init__(self) -> None:
         """Initialize the class."""
         if DEBUG:
             logformat = (
@@ -68,13 +72,13 @@ class DsulDaemon:
             level=loglevel,
             filename=logfile,
             format=logformat,
-            datefmt="%H:%M:%S",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         self.logger = logging.getLogger(__name__)
         self.logger.info("DsulDaemon initializing.")
 
         self.settings: Dict[str, Any] = settings.get_settings("daemon")
-        self.read_arguments(argv)
+        self.__read_arguments()
 
         self.ser = serial.Serial()
         self.init_serial()
@@ -98,84 +102,114 @@ class DsulDaemon:
 
     # SETTING #
 
-    def read_arguments(self, argv) -> None:  # noqa
+    def __read_arguments(self) -> None:  # noqa
         """Parse command line arguments."""
-        ready = {}
-        help_string = (
-            "dsul-daemon --help -h <host> -p <port> -s <socket> -c <com port> "
-            "-b <baudrate> --save --update --version --verbose"
+        parser = argparse.ArgumentParser(prog="dsul-daemon")
+        ipc_group = parser.add_mutually_exclusive_group()
+        config_group = parser.add_mutually_exclusive_group()
+
+        # IPC
+        ipc_group.add_argument(
+            "-a",
+            "--address",
+            nargs="?",
+            help="the address/hostname to expose IPC server on",
         )
-        version_string = f"Version {VERSION}"
+        ipc_group.add_argument(
+            "-s",
+            "--socket",
+            nargs="?",
+            help="the socket to use for IPC server",
+        )
+        parser.add_argument(
+            "-p",
+            "--port",
+            type=int,
+            nargs="?",
+            help="the port number to use for IPC server",
+        )
 
-        # read (overriding) settings from command arguments
-        try:
-            opts, args = getopt.getopt(  # pylint: disable=W0612
-                argv,
-                "p:h:c:b:s:v",
-                [
-                    "help",
-                    "port=",
-                    "host=",
-                    "comport=",
-                    "baudrate=",
-                    "socket=",
-                    "save",
-                    "update",
-                    "version",
-                    "verbose",
-                ],
-            )
-        except getopt.GetoptError:
-            print(help_string)
-            sys.exit(2)
+        # Config
+        config_group.add_argument(
+            "--save",
+            action="store_true",
+            help="create/overwrite config file with given settings",
+        )
+        config_group.add_argument(
+            "--update",
+            action="store_true",
+            help="update config file with given settings",
+        )
 
-        for opt, arg in opts:
-            if opt == "--help":
-                print(help_string)
-                sys.exit()
-            elif opt in ("-h", "--host"):
-                self.settings["ipc"]["host"] = arg
-            elif opt in ("-p", "--port"):
-                self.settings["ipc"]["port"] = int(arg)
-            elif opt in ("-s", "--socket"):
-                self.settings["ipc"]["socket"] = arg
-            elif opt in ("-c", "--comport"):
-                self.settings["serial"]["port"] = arg
-            elif opt in ("-b", "--baudrate"):
-                self.settings["serial"]["baudrate"] = int(arg)
-            elif opt == "--save":
-                ready["save"] = True
-            elif opt == "--update":
-                ready["update"] = True
-            elif opt == "--version":
-                print(version_string)
-                sys.exit()
-            elif opt in ("-v", "--verbose"):
-                if self.logger.level != logging.DEBUG:
-                    self.logger.setLevel(logging.INFO)
-                    verbose = logging.StreamHandler()
-                    formatter = logging.Formatter(
-                        "%(levelname)-8s %(message)s"
-                    )
-                    verbose.setLevel(logging.INFO)
-                    verbose.setFormatter(formatter)
-                    self.logger.addHandler(verbose)
+        # Serial
+        parser.add_argument(
+            "-c", "--comport", nargs="?", help="the COM port to use"
+        )
+        parser.add_argument(
+            "-b",
+            "--baudrate",
+            type=int,
+            nargs="?",
+            help="the baudrate to use for the COM port",
+        )
+        parser.add_argument(
+            "-t",
+            "--timeout",
+            type=int,
+            nargs="?",
+            help="the connection timeout to use for COM port (in seconds)",
+        )
 
-            for key in ready.keys():
-                if key == "save":
-                    self.logger.info("Saving settings to config file")
-                    settings.write_settings(
-                        self.settings, "daemon", update=False
-                    )
-                    sys.exit()
-                if key == "update":
-                    self.logger.info("Updating settings in config file")
-                    settings.write_settings(
-                        self.settings, "daemon", update=True
-                    )
-                    sys.exit()
+        # Output
+        parser.add_argument(
+            "--version",
+            action="version",
+            version=f"%(prog)s {VERSION}",
+            help="show version",
+        )
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            action="count",
+            default=0,
+            help="show more verbose output",
+        )
 
-    def update_settings(self) -> None:
+        args = parser.parse_args()
+        self.__handle_arguments(args)
+
+    def __handle_arguments(self, args) -> None:
+        """Parse setting arguments and options."""
+        if args.verbose > 0:
+            if self.logger.level != logging.DEBUG:
+                self.logger.setLevel(logging.INFO)
+                verbose = logging.StreamHandler()
+                formatter = logging.Formatter("%(levelname)-8s %(message)s")
+                verbose.setLevel(logging.INFO)
+                verbose.setFormatter(formatter)
+                self.logger.addHandler(verbose)
+        if args.address:
+            self.settings["ipc"]["host"] = args.address
+        if args.port:
+            self.settings["ipc"]["port"] = args.port
+        if args.socket:
+            self.settings["ipc"]["socket"] = args.socket
+        if args.comport:
+            self.settings["serial"]["port"] = args.comport
+        if args.baudrate:
+            self.settings["serial"]["baudrate"] = args.baudrate
+        if args.timeout:
+            self.settings["serial"]["timeout"] = args.timeout
+        if args.save:
+            self.logger.info("Saving settings to config file")
+            settings.write_settings(self.settings, "daemon", update=False)
+            sys.exit()
+        if args.update:
+            self.logger.info("Updating settings in config file")
+            settings.write_settings(self.settings, "daemon", update=True)
+            sys.exit()
+
+    def __update_settings(self) -> None:
         """Update setttings if needed."""
         if self.device["brightness_min"]:
             self.settings["brightness_min"] = self.device["brightness_min"]
@@ -196,21 +230,21 @@ class DsulDaemon:
             self.ipc_active = True
             ipc_stop = threading.Event()
             ipc_thread = threading.Thread(
-                target=self.ipc_process, daemon=True, args=(1, ipc_stop)
+                target=self.ipc_process, daemon=True, args=(ipc_stop,)
             )
             ipc_thread.start()
 
             self.pinger_active = True
             pinger_stop = threading.Event()
             pinger_thread = threading.Thread(
-                target=self.pinger_process, daemon=True, args=(2, pinger_stop)
+                target=self.pinger_process, daemon=True, args=(pinger_stop,)
             )
             pinger_thread.start()
 
-            self.send_information_request()
+            self.__send_information_request()
 
             while self.ipc_active:
-                self.process_commands()
+                self.__process_commands()
                 time.sleep(0.5)  # NOTE: find better way of handling this
 
             ipc_stop.set()
@@ -237,7 +271,7 @@ class DsulDaemon:
 
     # THREAD PROCESSES #
 
-    def ipc_process(self, t_index, stop_event) -> None:
+    def ipc_process(self, stop_event) -> None:
         """Handle IPC communication."""
         if self.settings["ipc"]["socket"]:
             if self.settings["ipc"]["socket"] == "":
@@ -248,11 +282,11 @@ class DsulDaemon:
                 self.settings["ipc"]["host"],
                 int(self.settings["ipc"]["port"]),
             )
-        self.logger.info(f"IPC server starting ({server_address})")
+        self.logger.info("IPC server starting (%s)", server_address)
 
         ipc_server = ipc.Server(
             address=server_address,
-            callback=self.process_server_request,
+            callback=self.__process_server_request,
         )
         ipc_server_thread = threading.Thread(
             target=ipc_server.run, daemon=False
@@ -266,7 +300,7 @@ class DsulDaemon:
         ipc_server_thread.join()
         self.logger.info("IPC server stopped")
 
-    def pinger_process(self, t_index, stop_event) -> None:
+    def pinger_process(self, stop_event) -> None:
         """Send pings to device, to keep communication open."""
         self.logger.info("Pinger starting")
 
@@ -274,7 +308,7 @@ class DsulDaemon:
             starttime = time.time()
 
             while not stop_event.is_set():
-                self.send_ping()
+                self.__send_ping()
                 stop_event.wait(
                     timeout=30.0 - ((time.time() - starttime) % 30.0)
                 )
@@ -288,8 +322,8 @@ class DsulDaemon:
         try:
             if not self.ser.is_open:
                 self.logger.info(
-                    "Opening serial port "
-                    f"({self.settings['serial']['port']})"
+                    "Opening serial port " "(%s)",
+                    self.settings["serial"]["port"],
                 )
                 self.ser.port = self.settings["serial"]["port"]
                 self.ser.baudrate = int(self.settings["serial"]["baudrate"])
@@ -298,18 +332,18 @@ class DsulDaemon:
                 self.serial_active = True
                 self.serial_verified = False
                 time.sleep(2)  # wait until device is out of boot state
-                self.set_current_states()
+                self.__set_current_states()
         except serial.serialutil.SerialException:
             self.logger.error(
-                "Failed to open serial port "
-                f"({self.settings['serial']['port']})"
+                "Failed to open serial port " "(%s)",
+                self.settings["serial"]["port"],
             )
             self.serial_verified = False
             self.serial_active = False
         except IOError:
             self.logger.error(
-                "Serial port does not exist. "
-                f"({self.settings['serial']['port']})"
+                "Serial port does not exist. " "(%s)",
+                self.settings["serial"]["port"],
             )
             self.serial_verified = False
             self.serial_active = False
@@ -326,14 +360,16 @@ class DsulDaemon:
 
     def read_serial(self) -> str:
         """Read and return data from serial port."""
+        # read from buffer first
         i = self.serial_input_buffer.find(b"#")
         if i >= 0:
             # fmt: off
-            r = self.serial_input_buffer[:i + 1]
+            read = self.serial_input_buffer[:i + 1]
             self.serial_input_buffer = self.serial_input_buffer[i + 1:]
             # fmt: on
-            return str(r.decode())
+            return str(read.decode())
 
+        # if buffer was empty we read from serial
         try:
             while True:
                 i = max(1, min(2048, self.ser.in_waiting))
@@ -342,13 +378,13 @@ class DsulDaemon:
 
                 if i >= 0:
                     # fmt: off
-                    r = self.serial_input_buffer + data[:i + 1]
+                    read = self.serial_input_buffer + data[:i + 1]
                     self.serial_input_buffer[0:] = data[i + 1:]
                     # fmt: on
                     self.serial_input_buffer = bytearray()
-                    return str(r.decode())
-                else:
-                    self.serial_input_buffer.extend(data)
+                    return str(read.decode())
+
+                self.serial_input_buffer.extend(data)
         except serial.serialutil.SerialException:
             return ""
 
@@ -360,26 +396,26 @@ class DsulDaemon:
         except serial.serialutil.SerialException:
             return False
 
-    def get_serial_input(self) -> None:
+    def __get_serial_input(self) -> None:
         """Get serial input and process it."""
         input_data = self.read_serial()
 
         if input_data is not None or input_data != "":
-            self.logger.debug(f"<S : {input_data}")
+            self.logger.debug("<S : %s", input_data)
             input_length = len(input_data)
 
             if input_length == 3:
-                self.handle_serial_command(input_data)
+                self.__handle_serial_command(input_data)
             else:
-                self.handle_serial_data(input_data)
+                self.__handle_serial_data(input_data)
 
-    def handle_serial_command(self, command: str) -> None:
+    def __handle_serial_command(self, command: str) -> None:
         """Handle serial command."""
         if command == "-!#":  # resend/request data
             self.logger.info("Serial Response: Resend/Request")
         elif command == "-?#":  # ping
             self.logger.info("Serial Response: Ping")
-            self.send_ok()
+            self.__send_ok()
         elif command == "+!#":  # ok
             self.logger.info("Serial Response: OK")
         elif command == "+?#":  # unknown/error
@@ -387,7 +423,7 @@ class DsulDaemon:
 
         self.serial_verified = True
 
-    def handle_serial_data(self, data: str) -> None:
+    def __handle_serial_data(self, data: str) -> None:
         """Handle serial data."""
         v_match = re.search(r"v(\d{3})\.(\d{3}).(\d{3})", str(data))
         ll_match = re.search(r"ll(\d{3})", str(data))
@@ -421,12 +457,12 @@ class DsulDaemon:
         self.device["current_mode"] = int(cm_match[1]) if cm_match else None
         self.device["current_dim"] = int(cd_match[1]) if cd_match else None
 
-        self.update_settings()
+        self.__update_settings()
         self.serial_verified = True
 
     # COMMAND HANDLING #
 
-    def process_commands(self) -> None:
+    def __process_commands(self) -> None:
         """Process the command queue."""
         retries = 0
         queue_count = len(self.send_commands)
@@ -437,7 +473,7 @@ class DsulDaemon:
             self.init_serial()  # make sure serial connection is setup
 
             if self.serial_active:
-                self.logger.debug(f"S> : {command_item['command']}")
+                self.logger.debug("S> : %s", command_item["command"])
 
                 try:
                     while not self.write_serial(str(command_item["command"])):
@@ -450,12 +486,13 @@ class DsulDaemon:
                         time.sleep(1)
 
                     if command_item["want_reply"]:
-                        self.get_serial_input()
-                except Exception as err:
+                        self.__get_serial_input()
+                except Exception as err:  # pylint: disable=W0703
                     self.logger.error("Sending serial command failed.")
                     self.logger.debug(
-                        f"Failed serial command: {command_item['command']}, "
-                        f"error: {err}"
+                        "Failed serial command: %s, error: %s",
+                        command_item["command"],
+                        err,
                     )
                     # sys.exit(1)  # don't exit on a send error
             else:
@@ -463,9 +500,9 @@ class DsulDaemon:
                     "Serial connection not active. Can't send commands."
                 )
 
-    def process_server_request(self, objects: Any) -> List:
+    def __process_server_request(self, objects: Any) -> List:
         """Handle request sent to the IPC server."""
-        self.logger.debug(f"<I : {objects}")
+        self.logger.debug("<I : %s", objects)
 
         if self.serial_verified:
             for message_object in objects:
@@ -473,19 +510,19 @@ class DsulDaemon:
                     action = "ACK"
 
                     if message_object.properties["key"] == "color":
-                        valid = self.send_color_command(
+                        valid = self.__send_color_command(
                             message_object.properties["value"]
                         )
                     elif message_object.properties["key"] == "brightness":
-                        valid = self.send_brightness_command(
+                        valid = self.__send_brightness_command(
                             message_object.properties["value"]
                         )
                     elif message_object.properties["key"] == "mode":
-                        valid = self.send_mode_command(
+                        valid = self.__send_mode_command(
                             message_object.properties["value"]
                         )
                     elif message_object.properties["key"] == "dim":
-                        valid = self.send_dim_command(
+                        valid = self.__send_dim_command(
                             int(message_object.properties["value"])
                         )
 
@@ -498,7 +535,7 @@ class DsulDaemon:
                         message = "Invalid command/argument"
 
                 elif message_object.type[0] == "request":
-                    result = self.get_request_results(message_object)
+                    result = self.__get_request_results(message_object)
                     action = result["action"]
                     message = result["message"]
                 else:
@@ -509,33 +546,33 @@ class DsulDaemon:
         else:
             response = [ipc.Response("ACK, No serial connection")]
 
-        self.logger.debug(f"I> : {response}")
+        self.logger.debug("I> : %s", response)
 
         return response
 
-    def set_current_states(self) -> None:
+    def __set_current_states(self) -> None:
         """Set current states, if any."""
         if self.current_mode:
-            self.send_mode_command(str(self.current_mode))
+            self.__send_mode_command(str(self.current_mode))
         elif self.current_color:
-            self.send_color_command(self.current_color)
+            self.__send_color_command(self.current_color)
         elif self.current_brightness:
-            self.send_brightness_command(self.current_brightness)
+            self.__send_brightness_command(self.current_brightness)
         elif self.current_dim:
-            self.send_dim_command(int(self.current_dim))
+            self.__send_dim_command(int(self.current_dim))
 
     # SEND ACTIONS #
 
-    def send_color_command(self, value: str) -> bool:
+    def __send_color_command(self, value: str) -> bool:
         """Send command to set color."""
         try:
-            r, g, b = value.split(":")
-            self.logger.info(f'Setting color: "{r},{g},{b}"')
+            red, green, blue = value.split(":")
+            self.logger.info("Setting color: '%s,%s,%s'", red, green, blue)
             self.current_color = value
             self.send_commands.append(
                 {
                     "command": "+l{:03d}{:03d}{:03d}#".format(
-                        int(r), int(g), int(b)
+                        int(red), int(green), int(blue)
                     ),
                     "want_reply": True,
                 }
@@ -543,34 +580,32 @@ class DsulDaemon:
 
             return True
         except ValueError:
-            self.logger.warning(f'Invalid argument: "{value}"')
+            self.logger.warning("Invalid argument: '%s'", value)
 
         return False
 
-    def send_brightness_command(self, value: str) -> bool:
+    def __send_brightness_command(self, value: str) -> bool:
         """Send command to set brightness."""
         if (
             int(value) >= self.settings["brightness_min"]
             and int(value) <= self.settings["brightness_max"]
         ):
-            self.logger.info(f'Setting brightness: "{value}"')
+            self.logger.info("Setting brightness: '%s'", value)
             self.current_brightness = value
             self.send_commands.append(
                 {"command": "+b{:03d}#".format(int(value)), "want_reply": True}
             )
 
             return True
-        else:
-            self.logger.warning(f'Invalid argument: "{value}"')
 
+        self.logger.warning("Invalid argument: '%s'", value)
         return False
 
-    def send_mode_command(self, value: str) -> bool:
+    def __send_mode_command(self, value: str) -> bool:
         """Send command to set the mode."""
         if value in self.settings["modes"]:
-            self.logger.info(f'Setting mode: "{value}"')
+            self.logger.info("Setting mode: '%s'", value)
             self.current_mode = int(self.settings["modes"][value])
-
             self.send_commands.append(
                 {
                     "command": "+m{:03d}#".format(self.current_mode),
@@ -579,17 +614,15 @@ class DsulDaemon:
             )
 
             return True
-        else:
-            self.logger.warning(f'Invalid argument: "{value}"')
 
+        self.logger.warning("Invalid argument: '%s'", value)
         return False
 
-    def send_dim_command(self, value: int) -> bool:
+    def __send_dim_command(self, value: int) -> bool:
         """Send command to set the dim mode."""
         if value >= 0 or value <= 1:
-            self.logger.info(f'Setting dim mode: "{value}"')
+            self.logger.info("Setting dim mode: '%s'", value)
             self.current_dim = int(value)
-
             self.send_commands.append(
                 {
                     "command": "+d{:01d}#".format(self.current_dim),
@@ -598,29 +631,28 @@ class DsulDaemon:
             )
 
             return True
-        else:
-            self.logger.warning(f'Invalid argument: "{value}"')
 
+        self.logger.warning("Invalid argument: '%s'", value)
         return False
 
-    def send_information_request(self) -> None:
+    def __send_information_request(self) -> None:
         """Send request to device for information."""
         self.logger.info("Asking device for information")
         self.send_commands.append({"command": "-!#", "want_reply": True})
 
-    def send_ping(self) -> None:
+    def __send_ping(self) -> None:
         """Send ping to device."""
         self.logger.info("Sending ping to device")
         self.send_commands.append({"command": "-?#", "want_reply": True})
 
-    def send_ok(self) -> None:
+    def __send_ok(self) -> None:
         """Send OK to device."""
         self.logger.info("Sending OK to device")
         self.send_commands.append({"command": "+!#", "want_reply": False})
 
     # GET ACTIONS #
 
-    def get_request_results(self, message_object: Any) -> Dict[str, str]:
+    def __get_request_results(self, message_object: Any) -> Dict[str, str]:
         """Return results after request handling."""
         action = "NOK"
         message = "Invalid request/argument"

@@ -94,6 +94,17 @@ def write_settings(
     if update and _config_file.exists():
         config.read(_config_file)
 
+    config = ipc_config(settings, default, config)
+
+    if settings_type == "daemon":
+        config = serial_config(settings, default, config)
+
+    with open(_config_file, "w") as file_handle:
+        config.write(file_handle)
+
+
+def ipc_config(settings, default, config):
+    """Parser IPC settings and return updated config."""
     ipc_diff = {
         k: settings["ipc"][k]
         for k, _ in set(settings["ipc"].items()) - set(default["ipc"].items())
@@ -104,17 +115,20 @@ def write_settings(
         for diff_key, diff_value in ipc_diff.items():
             config.set("IPC", diff_key, diff_value)
 
-    if settings_type == "daemon":
-        serial_diff = {
-            k: settings["serial"][k]
-            for k, _ in set(settings["serial"].items())
-            - set(default["serial"].items())
-        }
-        if serial_diff:
-            if "Serial" not in config.sections():
-                config.add_section("Serial")
-            for diff_key, diff_value in serial_diff.items():
-                config.set("Serial", diff_key, diff_value)
+    return config
 
-    with open(_config_file, "w") as file_handle:
-        config.write(file_handle)
+
+def serial_config(settings, default, config):
+    """Parse serial settings and return updated config."""
+    serial_diff = {
+        k: settings["serial"][k]
+        for k, _ in set(settings["serial"].items())
+        - set(default["serial"].items())
+    }
+    if serial_diff:
+        if "Serial" not in config.sections():
+            config.add_section("Serial")
+        for diff_key, diff_value in serial_diff.items():
+            config.set("Serial", diff_key, diff_value)
+
+    return config

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """DSUL - Disturb State USB Light : CLI application."""
 
-import getopt
+import argparse
 import logging
 import re
 import sys
@@ -12,7 +12,7 @@ from . import DEBUG, VERSION, ipc, settings
 
 def main():
     """Run the application."""
-    DsulCli(sys.argv[1:])
+    DsulCli()
 
 
 class DsulCli:
@@ -20,18 +20,22 @@ class DsulCli:
 
     logger: Any = None
     retries: int = 0
+    settings: Dict[str, Any] = {}
     colors: Dict[str, List[str]] = {}
     modes: List[str] = []
     ipc: Dict[str, Union[int, str]] = {}
     command_queue: List[Dict[str, str]] = []
+    sequence_done = True
     waiting_for_reply: bool = False
-    current_color = "n/a"
-    current_mode = "n/a"
-    current_brightness = "n/a"
-    current_dim = "n/a"
+    current: Dict[str, str] = {
+        "color": "n/a",
+        "mode": "n/a",
+        "brightness": "n/a",
+        "dim": "n/a",
+    }
 
     @no_type_check
-    def __init__(self, argv) -> None:
+    def __init__(self) -> None:
         """Initialize the class."""
         if DEBUG:
             logformat = (
@@ -46,14 +50,14 @@ class DsulCli:
         logging.basicConfig(
             level=loglevel,
             format=logformat,
-            datefmt="%H:%M:%S",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         self.logger = logging.getLogger(__name__)
 
-        self.settings: Dict[str, Any] = settings.get_settings("cli")
-        self.read_argument(argv)
+        self.settings = settings.get_settings("cli")
+        self.__read_arguments()
         self.logger.info("Requesting server information")
-        self.requst_server_information()
+        self.__requst_server_information()
         self.perform_actions()
 
     def __missing__(self, key) -> str:
@@ -65,117 +69,154 @@ class DsulCli:
     def __str__(self) -> str:
         """Return a string value representing the object."""
         message = (
-            "DsulCli<>(logger=val, settings=val, sequence_done=val, "
-            "command_queue=val, waiting_for_reply=val, current_mode=val, "
-            "current_color=val, current_brightness=val, current_dim=val)"
+            "DsulCli<>(logger=val, retries=val, settings=val, colors=val, "
+            "modes=val, ipc=val, command_queue=val, sequence_done=val, "
+            "waiting_for_reply=val, current=val)"
         )
         return message
 
-    def read_argument(self, argv) -> None:  # noqa
-        """Parse command line arguments."""
-        ready = {}
-        color = ""
-        mode = ""
-        brightness = ""
-        dim = ""
-        help_string = (
-            "dsul-cli --help -l -c <color> -m <mode> "
-            "-b <brightness> -d -u -h <host> -p <port> -s <socket> --save "
-            "--update --version --verbose"
+    def __read_arguments(self) -> None:
+        """Get command line arguments and options."""
+        parser = argparse.ArgumentParser(prog="dsul-cli")
+        ipc_group = parser.add_mutually_exclusive_group()
+        config_group = parser.add_mutually_exclusive_group()
+        dim_group = parser.add_mutually_exclusive_group()
+
+        # IPC
+        ipc_group.add_argument(
+            "-a",
+            "--address",
+            nargs="?",
+            help="use given host address when connecting to server",
         )
-        version_string = f"Version {VERSION}"
+        ipc_group.add_argument(
+            "-s",
+            "--socket",
+            nargs="?",
+            help="use given socket when connecting to server",
+        )
+        parser.add_argument(
+            "-p",
+            "--port",
+            type=int,
+            nargs="?",
+            help="use given port when connecting to server",
+        )
 
-        try:
-            opts, args = getopt.getopt(  # pylint: disable=W0612
-                argv,
-                "lh:p:c:m:b:dus:v",
-                [
-                    "help",
-                    "list",
-                    "host=",
-                    "port=",
-                    "color=",
-                    "mode=",
-                    "brightness=",
-                    "dim",
-                    "undim",
-                    "socket=",
-                    "save",
-                    "update",
-                    "version",
-                    "verbose",
-                ],
-            )
-        except getopt.GetoptError:
-            print(help_string)
-            sys.exit(2)
+        # LED's
+        parser.add_argument(
+            "-c",
+            "--color",
+            nargs="?",
+            choices=self.settings["colors"],
+            help="set given color",
+        )
+        parser.add_argument(
+            "-m",
+            "--mode",
+            nargs="?",
+            choices=self.settings["modes"],
+            help="set given mode",
+        )
+        parser.add_argument(
+            "-b",
+            "--brightness",
+            type=int,
+            nargs="?",
+            help="set given brightness",
+        )
+        dim_group.add_argument(
+            "-d", "--dim", action="store_true", help="dim colors"
+        )
+        dim_group.add_argument(
+            "-u", "--undim", action="store_true", help="un-dim colors"
+        )
 
-        for opt, arg in opts:
-            if opt == "--help":
-                print(help_string)
-                sys.exit()
-            elif opt in ("-l", "--list"):
-                try:
-                    self.logger.info("Requesting server information")
-                    self.requst_server_information()
-                    self.perform_actions()
-                except Exception:
-                    pass
-                self.list_information()
-                sys.exit()
-            elif opt in ("-c", "--color"):
-                color = arg
-                ready["color"] = True
-            elif opt in ("-b", "--brightness"):
-                brightness = arg
-                ready["brightness"] = True
-            elif opt in ("-m", "--mode"):
-                mode = arg
-                ready["mode"] = True
-            elif opt in ("-d", "--dim"):
-                dim = "1"
-                ready["dim"] = True
-            elif opt in ("-u", "--undim"):
-                dim = "0"
-                ready["dim"] = True
-            elif opt in ("-p", "--port"):
-                self.settings["ipc"]["port"] = arg
-            elif opt in ("-h", "--host"):
-                self.settings["ipc"]["host"] = arg
-            elif opt in ("-s", "--socket"):
-                self.settings["ipc"]["socket"] = arg
-            elif opt == "--save":
-                ready["save"] = True
-            elif opt == "--update":
-                ready["update"] = True
-            elif opt == "--version":
-                print(version_string)
-                sys.exit()
-            elif opt in ("-v", "--verbose"):
-                if self.logger.level != logging.DEBUG:
-                    self.logger.setLevel(logging.INFO)
+        # Config
+        config_group.add_argument(
+            "--save",
+            action="store_true",
+            help="create/overwrite config file with given settings",
+        )
+        config_group.add_argument(
+            "--update",
+            action="store_true",
+            help="update config file with given settings",
+        )
 
-        if True not in ready.values():
-            self.logger.error("Missing commands and/or arguments")
-            sys.exit(1)
-        else:
-            for key in ready.keys():
-                if key == "color":
-                    self.set_color(color)
-                if key == "brightness":
-                    self.set_brightness(brightness)
-                if key == "mode":
-                    self.set_mode(mode)
-                if key == "dim":
-                    self.set_dim(dim)
-                if key == "save":
-                    self.logger.info("Saving settings to config file")
-                    settings.write_settings(self.settings, "cli", update=False)
-                    sys.exit()
-                if key == "update":
-                    self.logger.info("Updating settings in config file")
-                    settings.write_settings(self.settings, "cli", update=True)
-                    sys.exit()
+        # Output
+        parser.add_argument(
+            "-l",
+            "--list",
+            action="store_true",
+            help="list settings and limits",
+        )
+        parser.add_argument(
+            "--version",
+            action="version",
+            version=f"%(prog)s {VERSION}",
+            help="show version",
+        )
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            action="count",
+            default=0,
+            help="show more verbose output",
+        )
+
+        args = parser.parse_args()
+        self.__handle_arguments(args)
+        actions = self.__handle_actions(args)
+
+        if actions == 0:
+            parser.print_help()
+
+    def __handle_arguments(self, args) -> None:
+        """Handle setting and print arguments and options."""
+        if args.verbose > 0:
+            if self.logger.level != logging.DEBUG:
+                self.logger.setLevel(logging.INFO)
+        if args.address:
+            self.settings["ipc"]["host"] = args.address
+        if args.port:
+            self.settings["ipc"]["port"] = args.port
+        if args.socket:
+            self.settings["ipc"]["socket"] = args.socket
+        if args.list:
+            self.__requst_server_information()
+            self.list_information()
+            sys.exit()
+        if args.save:
+            self.logger.info("Saving settings to config file")
+            settings.write_settings(self.settings, "cli", update=False)
+            sys.exit()
+        if args.update:
+            self.logger.info("Updating settings in config file")
+            settings.write_settings(self.settings, "cli", update=True)
+            sys.exit()
+
+    def __handle_actions(self, args) -> int:
+        """Handle action arguments and options."""
+        actions = 0
+
+        if args.color:
+            self.set_color(args.color)
+            actions += 1
+        if args.brightness:
+            self.set_brightness(args.brightness)
+            actions += 1
+        if args.mode:
+            self.set_mode(args.mode)
+            actions += 1
+        if args.dim:
+            self.set_dim(1)
+            actions += 1
+        if args.undim:
+            self.set_dim(0)
+            actions += 1
+
+        return actions
 
     def set_color(self, color) -> None:
         """Send command to set color."""
@@ -189,7 +230,7 @@ class DsulCli:
                 {"type": "command", "key": "color", "value": command_value}
             )
         else:
-            self.logger.error("Specified color isn't supported (%s)" % color)
+            self.logger.error("Specified color isn't supported (%s)", color)
             sys.exit(1)
 
     def set_brightness(self, brightness) -> None:
@@ -209,7 +250,7 @@ class DsulCli:
             )
         else:
             self.logger.error(
-                "Specified brightness isn't supported (%s)" % brightness
+                "Specified brightness isn't supported (%s)", brightness
             )
             sys.exit(1)
 
@@ -221,7 +262,7 @@ class DsulCli:
                 {"type": "command", "key": "mode", "value": mode}
             )
         else:
-            self.logger.error("Specified mode isn't supported (%s)" % mode)
+            self.logger.error("Specified mode isn't supported (%s)", mode)
             sys.exit(1)
 
     def set_dim(self, dim) -> None:
@@ -232,7 +273,7 @@ class DsulCli:
                 {"type": "command", "key": "dim", "value": dim}
             )
         else:
-            self.logger.error("Specified dim mode isn't supported (%s)" % dim)
+            self.logger.error("Specified dim mode isn't supported (%s)", dim)
             sys.exit(1)
 
     def perform_actions(self) -> None:
@@ -240,7 +281,7 @@ class DsulCli:
         for command in self.command_queue:
             self.ipc_send(command["type"], command["key"], command["value"])
 
-    def ipc_send(self, type: str, key: str, value: str) -> None:
+    def ipc_send(self, event_type: str, key: str, value: str) -> None:
         """Send IPC call to daemon."""
         try:
             # Send command to daemon
@@ -255,16 +296,16 @@ class DsulCli:
             user_input = [
                 {
                     "class": "Event",
-                    "args": type,
+                    "args": event_type,
                     "kwargs": {"key": key, "value": value},
                 }
             ]
             objects = ipc.Message.deserialize(user_input)
-            self.logger.debug(f"Sending objects: {objects}")
+            self.logger.debug("Sending objects: %s", objects)
             with ipc.Client(server_address) as client:
                 response = client.send(objects)
-            self.logger.debug(f"Received objects: {response}")
-            self.handle_response(response)
+            self.logger.debug("Received objects: %s", response)
+            self.__handle_response(response)
         except KeyError:
             self.logger.error("Key error")
             sys.exit(1)
@@ -275,69 +316,74 @@ class DsulCli:
             self.logger.error("IPC connection was refused")
             sys.exit(2)
 
-    def handle_response(self, response) -> None:
-        """Handle the reponse from daemon."""
+    def __handle_response(self, response) -> None:
+        """Handle the response from daemon."""
         response = response[0].text[0]
-
         key, value = re.split(r",", response, 1)
         key = key.strip()
         value = value.strip()
 
-        if key == "OK":
-            self.logger.info("Reply: OK")
-            self.parse_response_value(value)
-            self.sequence_done = True
-        elif key == "NOK":
-            self.logger.info("Reply: Not OK")
-            self.parse_response_value(value)
+        if key in ("OK", "NOK"):
+            self.logger.info("Reply: %s", key)
+            self.__parse_response_value(value)
             self.sequence_done = True
         elif key == "ACK":
-            if value == "No serial connection":
-                self.logger.warning("Daemon can't connect to device")
-            elif value == "Invalid command/argument":
-                self.logger.warning("Invalid command or argument sent")
-            elif value == "Unknown event type":
-                self.logger.warning("Unknown type of event sent")
-            else:
-                command, argument = re.split(r"=", value, 1)
-                command = command.strip()
-                argument = argument.strip()
+            self.__handle_response_ack(value)
 
-                self.logger.info(
-                    "Command sent. Setting %s to %s", command, argument
-                )
-                self.ipc_send("request", "status", command)
-                self.waiting_for_reply = True
+    def __handle_response_ack(self, value: str) -> None:
+        """Handle ACK response."""
+        if value == "No serial connection":
+            self.logger.warning("Server can't connect to device")
+        elif value == "Invalid command/argument":
+            self.logger.warning("Invalid command or argument sent")
+        elif value == "Unknown event type":
+            self.logger.warning("Unknown type of event sent")
+        else:
+            command, argument = re.split(r"=", value, 1)
+            command = command.strip()
+            argument = argument.strip()
 
-            self.sequence_done = True
+            self.logger.info(
+                "Command sent. Setting %s to %s", command, argument
+            )
+            self.ipc_send("request", "status", command)
+            self.waiting_for_reply = True
 
-    def parse_response_value(self, value: str):  # noqa
+        self.sequence_done = True
+
+    def __parse_response_value(self, value: str) -> None:
         """Parse the response value."""
         if self.waiting_for_reply:
             self.waiting_for_reply = False
 
             for item in value.split(";"):
-                try:
-                    key, val = item.split("=")
+                self.__update_values(item)
+        else:
+            self.logger.debug("Received unexpected data: %s", value)
 
-                    if key == "modes":
-                        self.settings["modes"] = eval(val)
-                    elif key == "current_color":
-                        self.current_color = val
-                    elif key == "current_mode":
-                        self.current_mode = val
-                    elif key == "current_brightness":
-                        self.current_brightness = val
-                    elif key == "current_dim":
-                        self.current_dim = val
-                    elif key == "brightness_min":
-                        self.settings["brightness_min"] = int(val)
-                    elif key == "brightness_max":
-                        self.settings["brightness_max"] = int(val)
-                except ValueError:
-                    pass
+    def __update_values(self, item: str) -> None:
+        """Update values based on response."""
+        try:
+            key, val = item.split("=")
 
-    def requst_server_information(self) -> None:
+            if key == "modes":
+                self.settings["modes"] = eval(val)  # pylint: disable=W0123
+            elif key == "current_color":
+                self.current["color"] = val
+            elif key == "current_mode":
+                self.current["mode"] = val
+            elif key == "current_brightness":
+                self.current["brightness"] = val
+            elif key == "current_dim":
+                self.current["dim"] = val
+            elif key == "brightness_min":
+                self.settings["brightness_min"] = int(val)
+            elif key == "brightness_max":
+                self.settings["brightness_max"] = int(val)
+        except ValueError as err:
+            self.logger.debug("Error while updating values. (error: %s)", err)
+
+    def __requst_server_information(self) -> None:
         """Request information from server; settings, limits etc."""
         self.sequence_done = False
         self.waiting_for_reply = True
@@ -345,7 +391,7 @@ class DsulCli:
 
     def list_information(self) -> None:
         """Print out all modes and colors."""
-        print("\n[modes]")
+        print("[modes]")
         for mode in self.settings["modes"]:
             print(f"- {mode}")
 
@@ -357,11 +403,11 @@ class DsulCli:
         print(f"- min = {self.settings['brightness_min']}")
         print(f"- max = {self.settings['brightness_max']}")
 
-        print("\n[current]")
-        print(f"- color = {self.current_color}")
-        print(f"- mode = {self.current_mode}")
-        print(f"- brightness = {self.current_brightness}")
-        print(f"- dim = {self.current_dim}")
+        print("\n[current values]")
+        print(f"- color = {self.current['color']}")
+        print(f"- mode = {self.current['mode']}")
+        print(f"- brightness = {self.current['brightness']}")
+        print(f"- dim = {self.current['dim']}")
 
 
 if __name__ == "__main__":
