@@ -85,7 +85,7 @@ As package: `dsul-cli [arguments]`
     -m, --mode <mode>              Set mode to given value (must be on of the predefined modes).
     -d, --dim                      Turn on color dimming.
     -u, --undim                    Turn off color dimming.
-    -h, --host <host>              The hostname/address of the IPC server. [default: localhost]
+    -a, --address <host>           The hostname/address of the IPC server. [default: localhost]
     -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
     -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
     -v, --verbose                  Show more detailed output.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """DSUL - Disturb State USB Light : CLI application."""
 
-import getopt
+import argparse
 import logging
 import re
 import sys
@@ -12,7 +12,7 @@ from . import DEBUG, VERSION, ipc, settings
 
 def main():
     """Run the application."""
-    DsulCli(sys.argv[1:])
+    DsulCli()
 
 
 class DsulCli:
@@ -35,7 +35,7 @@ class DsulCli:
     }
 
     @no_type_check
-    def __init__(self, argv) -> None:
+    def __init__(self) -> None:
         """Initialize the class."""
         if DEBUG:
             logformat = (
@@ -55,7 +55,7 @@ class DsulCli:
         self.logger = logging.getLogger(__name__)
 
         self.settings = settings.get_settings("cli")
-        self.read_arguments(argv)
+        self.__read_arguments()
         self.logger.info("Requesting server information")
         self.requst_server_information()
         self.perform_actions()
@@ -75,118 +75,148 @@ class DsulCli:
         )
         return message
 
-    def read_arguments(self, argv) -> None:
+    def __read_arguments(self) -> None:
         """Get command line arguments and options."""
-        try:
-            opts, args = getopt.getopt(  # pylint: disable=W0612
-                argv,
-                "lh:p:c:m:b:dus:v",
-                [
-                    "help",
-                    "list",
-                    "host=",
-                    "port=",
-                    "color=",
-                    "mode=",
-                    "brightness=",
-                    "dim",
-                    "undim",
-                    "socket=",
-                    "save",
-                    "update",
-                    "version",
-                    "verbose",
-                ],
-            )
-        except getopt.GetoptError:
-            opts = [
-                ("--help", ""),
-            ]
+        parser = argparse.ArgumentParser(prog="dsul-cli")
+        ipc_group = parser.add_mutually_exclusive_group()
+        config_group = parser.add_mutually_exclusive_group()
+        dim_group = parser.add_mutually_exclusive_group()
 
-        # parse settings before taking action
-        for item in opts:
-            opts[:] = [
-                item for item in opts if not self.parse_setting_argument(item)
-            ]
+        # IPC
+        ipc_group.add_argument(
+            "-a",
+            "--address",
+            nargs="?",
+            help="use given host address when connecting to server",
+        )
+        ipc_group.add_argument(
+            "-s",
+            "--socket",
+            nargs="?",
+            help="use given socket when connecting to server",
+        )
+        parser.add_argument(
+            "-p",
+            "--port",
+            type=int,
+            nargs="?",
+            help="use given port when connecting to server",
+        )
 
-        # parse print and action statements
-        for opt, arg in opts:
-            self.parse_print_argument(opt)
-            self.parse_action_argument(opt, arg)
+        # LED's
+        parser.add_argument(
+            "-c",
+            "--color",
+            nargs="?",
+            choices=self.settings["colors"],
+            help="set given color",
+        )
+        parser.add_argument(
+            "-m",
+            "--mode",
+            nargs="?",
+            choices=self.settings["modes"],
+            help="set given mode",
+        )
+        parser.add_argument(
+            "-b",
+            "--brightness",
+            type=int,
+            nargs="?",
+            help="set given brightness",
+        )
+        dim_group.add_argument(
+            "-d", "--dim", action="store_true", help="dim colors"
+        )
+        dim_group.add_argument(
+            "-u", "--undim", action="store_true", help="un-dim colors"
+        )
 
-    def parse_setting_argument(self, item) -> bool:
-        """Parse setting arguments and options."""
-        (opt, arg) = item
+        # Config
+        config_group.add_argument(
+            "--save",
+            action="store_true",
+            help="create/overwrite config file with given settings",
+        )
+        config_group.add_argument(
+            "--update",
+            action="store_true",
+            help="update config file with given settings",
+        )
 
-        if opt in ("-v", "--verbose"):
+        # Output
+        parser.add_argument(
+            "-l",
+            "--list",
+            action="store_true",
+            help="list settings and limits",
+        )
+        parser.add_argument(
+            "--version",
+            action="version",
+            version=f"%(prog)s {VERSION}",
+            help="show version",
+        )
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            action="count",
+            default=0,
+            help="show more verbose output",
+        )
+
+        args = parser.parse_args()
+        self.__handle_arguments(args)
+        actions = self.__handle_actions(args)
+
+        if actions == 0:
+            parser.print_help()
+
+    def __handle_arguments(self, args) -> None:
+        """Handle setting and print arguments and options."""
+        if args.verbose > 0:
             if self.logger.level != logging.DEBUG:
                 self.logger.setLevel(logging.INFO)
-            return True
-        if opt in ("-p", "--port"):
-            self.settings["ipc"]["port"] = arg
-            return True
-        if opt in ("-h", "--host"):
-            self.settings["ipc"]["host"] = arg
-            return True
-        if opt in ("-s", "--socket"):
-            self.settings["ipc"]["socket"] = arg
-            return True
-
-        return False
-
-    def parse_print_argument(self, opt) -> None:
-        """Parse print arguments and options."""
-        help_string = (
-            "Usage: \n\n"
-            "dsul-cli <arguments>\n\n"
-            "--help\t\t\tShow (this) help text.\n"
-            "--save\t\t\tCreate/overwrite config file with given settings.\n"
-            "--update\t\tUpdate config file with given settings.\n"
-            "--version\t\tShow version.\n"
-            "-l, --list\t\tList settings and limits.\n"
-            "-c, --color <value>\tSet given color.\n"
-            "-m, --mode <value>\tSet given mode.\n"
-            "-b, brightness <value>\tSet given brightness.\n"
-            "-d, --dim\t\tDim colors.\n"
-            "-u, --undim\t\tUn-dim colors.\n"
-            "-h, --host <host>\tUse given host when connecting to server.\n"
-            "-p, --port <port>\tUse given port when connecting to server.\n"
-            "-s, --socket <socket>\tUse given socket when connecting to "
-            "server.\n"
-            "-v, --verbose\t\tShow more output."
-        )
-        version_string = f"Version {VERSION}"
-
-        if opt == "--help":
-            print(help_string)
-        elif opt == "--version":
-            print(version_string)
-        elif opt in ("-l", "--list"):
+        if args.address:
+            self.settings["ipc"]["host"] = args.address
+        if args.port:
+            self.settings["ipc"]["port"] = args.port
+        if args.socket:
+            self.settings["ipc"]["socket"] = args.socket
+        if args.list:
             self.requst_server_information()
             self.list_information()
-        elif opt == "--save":
+            sys.exit()
+        if args.save:
             self.logger.info("Saving settings to config file")
             settings.write_settings(self.settings, "cli", update=False)
-        elif opt == "--update":
+            sys.exit()
+        if args.update:
             self.logger.info("Updating settings in config file")
             settings.write_settings(self.settings, "cli", update=True)
-        else:
-            return
+            sys.exit()
 
-        sys.exit()
+    def __handle_actions(self, args) -> int:
+        """Handle action arguments and options."""
+        actions = 0
 
-    def parse_action_argument(self, opt, arg) -> None:
-        """Parse action arguments and options."""
-        if opt in ("-c", "--color"):
-            self.set_color(arg)
-        elif opt in ("-b", "--brightness"):
-            self.set_brightness(arg)
-        elif opt in ("-m", "--mode"):
-            self.set_mode(arg)
-        elif opt in ("-d", "--dim"):
-            self.set_dim("1")
-        elif opt in ("-u", "--undim"):
-            self.set_dim("0")
+        if args.color:
+            self.set_color(args.color)
+            actions += 1
+        if args.brightness:
+            self.set_brightness(args.brightness)
+            actions += 1
+        if args.mode:
+            self.set_mode(args.mode)
+            actions += 1
+        if args.dim:
+            self.set_dim(1)
+            actions += 1
+        if args.undim:
+            self.set_dim(0)
+            actions += 1
+
+        return actions
 
     def set_color(self, color) -> None:
         """Send command to set color."""
@@ -361,7 +391,7 @@ class DsulCli:
 
     def list_information(self) -> None:
         """Print out all modes and colors."""
-        print("\n[modes]")
+        print("[modes]")
         for mode in self.settings["modes"]:
             print(f"- {mode}")
 
@@ -373,7 +403,7 @@ class DsulCli:
         print(f"- min = {self.settings['brightness_min']}")
         print(f"- max = {self.settings['brightness_max']}")
 
-        print("\n[current]")
+        print("\n[current values]")
         print(f"- color = {self.current['color']}")
         print(f"- mode = {self.current['mode']}")
         print(f"- brightness = {self.current['brightness']}")
