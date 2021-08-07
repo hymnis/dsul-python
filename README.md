@@ -54,11 +54,11 @@ As package: `dsul-daemon [arguments]`
 
 ### Options
 
-    --help                    Show help and usage information.
+    -h, --help                Show help and usage information.
     --save                    Save (non-default) settings to config file.
     --update                  Update config file with new settings.
     --version                 Show current version.
-    -h, --host <host>         The hostname/address to expose IPC server on. [default: localhost]
+    -a, --address <address>   The address/hostname to expose IPC server on. [default: localhost]
     -p, --port <port>         The port number used for the IPC server. [default: 5795]
     -s, --socket <socket>     The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
     -c, --comport <comport>   The COM port to use. [default: /dev/ttyUSB0]
@@ -75,7 +75,7 @@ As package: `dsul-cli [arguments]`
 
 ### Options
 
-    --help                         Show help and usage information.
+    -h, --help                     Show help and usage information.
     --save                         Save (non-default) settings to config file.
     --update                       Update config file with new settings.
     --version                      Show current version.
@@ -85,7 +85,7 @@ As package: `dsul-cli [arguments]`
     -m, --mode <mode>              Set mode to given value (must be on of the predefined modes).
     -d, --dim                      Turn on color dimming.
     -u, --undim                    Turn off color dimming.
-    -a, --address <host>           The hostname/address of the IPC server. [default: localhost]
+    -a, --address <address>        The address/hostname of the IPC server. [default: localhost]
     -p, --port <port>              The port number used to connect to the IPC server. [default: 5795]
     -s, --socket <socket>          The socket to use for IPC server (disables TCP, -h and -p aren't needed or used).
     -v, --verbose                  Show more detailed output.
