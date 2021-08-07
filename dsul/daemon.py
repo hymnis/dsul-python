@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """DSUL - Disturb State USB Light : Daemon application."""
 
-import getopt
+import argparse
 import logging
 import re
 import sys
@@ -32,7 +32,7 @@ sys.excepthook = exception_handler
 
 def main():
     """Run the program."""
-    application = DsulDaemon(sys.argv[1:])
+    application = DsulDaemon()
     application.run()
 
 
@@ -54,7 +54,7 @@ class DsulDaemon:  # pylint: disable=R0902
     current_dim = 0
 
     @no_type_check
-    def __init__(self, argv) -> None:
+    def __init__(self) -> None:
         """Initialize the class."""
         if DEBUG:
             logformat = (
@@ -78,7 +78,7 @@ class DsulDaemon:  # pylint: disable=R0902
         self.logger.info("DsulDaemon initializing.")
 
         self.settings: Dict[str, Any] = settings.get_settings("daemon")
-        self.__read_arguments(argv)
+        self.__read_arguments()
 
         self.ser = serial.Serial()
         self.init_serial()
@@ -102,47 +102,85 @@ class DsulDaemon:  # pylint: disable=R0902
 
     # SETTING #
 
-    def __read_arguments(self, argv) -> None:  # noqa
+    def __read_arguments(self) -> None:  # noqa
         """Parse command line arguments."""
-        try:
-            opts, args = getopt.getopt(  # pylint: disable=W0612
-                argv,
-                "p:h:c:b:s:v",
-                [
-                    "help",
-                    "port=",
-                    "host=",
-                    "comport=",
-                    "baudrate=",
-                    "socket=",
-                    "save",
-                    "update",
-                    "version",
-                    "verbose",
-                ],
-            )
-        except getopt.GetoptError:
-            opts = [
-                ("--help", ""),
-            ]
+        parser = argparse.ArgumentParser(prog="dsul-daemon")
+        ipc_group = parser.add_mutually_exclusive_group()
+        config_group = parser.add_mutually_exclusive_group()
 
-        # parse settings before anything else
-        for item in opts:
-            opts[:] = [
-                item
-                for item in opts
-                if not self.__parse_setting_argument(item)
-            ]
+        # IPC
+        ipc_group.add_argument(
+            "-a",
+            "--address",
+            nargs="?",
+            help="the address/hostname to expose IPC server on",
+        )
+        ipc_group.add_argument(
+            "-s",
+            "--socket",
+            nargs="?",
+            help="the socket to use for IPC server",
+        )
+        parser.add_argument(
+            "-p",
+            "--port",
+            type=int,
+            nargs="?",
+            help="the port number to use for IPC server",
+        )
 
-        # parse print statements
-        for opt, arg in opts:  # pylint: disable=W0612
-            self.__parse_print_argument(opt)
+        # Config
+        config_group.add_argument(
+            "--save",
+            action="store_true",
+            help="create/overwrite config file with given settings",
+        )
+        config_group.add_argument(
+            "--update",
+            action="store_true",
+            help="update config file with given settings",
+        )
 
-    def __parse_setting_argument(self, item) -> bool:
+        # Serial
+        parser.add_argument(
+            "-c", "--comport", nargs="?", help="the COM port to use"
+        )
+        parser.add_argument(
+            "-b",
+            "--baudrate",
+            type=int,
+            nargs="?",
+            help="the baudrate to use for the COM port",
+        )
+        parser.add_argument(
+            "-t",
+            "--timeout",
+            type=int,
+            nargs="?",
+            help="the connection timeout to use for COM port (in seconds)",
+        )
+
+        # Output
+        parser.add_argument(
+            "--version",
+            action="version",
+            version=f"%(prog)s {VERSION}",
+            help="show version",
+        )
+        parser.add_argument(
+            "-v",
+            "--verbose",
+            action="count",
+            default=0,
+            help="show more verbose output",
+        )
+
+        args = parser.parse_args()
+        self.__handle_arguments(args)
+
+    def __handle_arguments(self, args) -> None:
         """Parse setting arguments and options."""
-        (opt, arg) = item
-
-        if opt in ("-v", "--verbose"):
+        if args.verbose > 0:
             if self.logger.level != logging.DEBUG:
                 self.logger.setLevel(logging.INFO)
                 verbose = logging.StreamHandler()
@@ -150,56 +188,26 @@ class DsulDaemon:  # pylint: disable=R0902
                 verbose.setLevel(logging.INFO)
                 verbose.setFormatter(formatter)
                 self.logger.addHandler(verbose)
-        elif opt in ("-h", "--host"):
-            self.settings["ipc"]["host"] = arg
-        elif opt in ("-p", "--port"):
-            self.settings["ipc"]["port"] = int(arg)
-        elif opt in ("-s", "--socket"):
-            self.settings["ipc"]["socket"] = arg
-        elif opt in ("-c", "--comport"):
-            self.settings["serial"]["port"] = arg
-        elif opt in ("-b", "--baudrate"):
-            self.settings["serial"]["baudrate"] = int(arg)
-        else:
-            return False
-
-        return True
-
-    def __parse_print_argument(self, opt) -> None:
-        """Parse print arguments and options."""
-        help_string = (
-            "Usage: \n\n"
-            "dsul-daemon <arguments>\n\n"
-            "--help\t\t\tShow (this) help text.\n"
-            "--save\t\t\tCreate/overwrite config file with given settings.\n"
-            "--update\t\tUpdate config file with given settings.\n"
-            "--version\t\tShow version.\n"
-            "-h, --host <value>\tThe hostname/address to expose IPC server "
-            "on.\n"
-            "-p, --port <value>\tThe port number used for the IPC server.\n"
-            "-s, --socket <value>\tThe socket to use for IPC server .\n"
-            "-c, --comport <value>\tThe COM port to use.\n"
-            "-b, --baudrate <value>\tThe baudrate to use with the COM port.\n"
-            "-t, --timeout <value>\tThe connection timeout to use for COM "
-            "port (in seconds).\n"
-            "-v, --verbose\t\tShow more output."
-        )
-        version_string = f"Version {VERSION}"
-
-        if opt == "--help":
-            print(help_string)
-        elif opt == "--version":
-            print(version_string)
-        elif opt == "--save":
+        if args.address:
+            self.settings["ipc"]["host"] = args.address
+        if args.port:
+            self.settings["ipc"]["port"] = args.port
+        if args.socket:
+            self.settings["ipc"]["socket"] = args.socket
+        if args.comport:
+            self.settings["serial"]["port"] = args.comport
+        if args.baudrate:
+            self.settings["serial"]["baudrate"] = args.baudrate
+        if args.timeout:
+            self.settings["serial"]["timeout"] = args.timeout
+        if args.save:
             self.logger.info("Saving settings to config file")
             settings.write_settings(self.settings, "daemon", update=False)
-        elif opt == "--update":
+            sys.exit()
+        if args.update:
             self.logger.info("Updating settings in config file")
             settings.write_settings(self.settings, "daemon", update=True)
-        else:
-            return
-
-        sys.exit()
+            sys.exit()
 
     def __update_settings(self) -> None:
         """Update setttings if needed."""

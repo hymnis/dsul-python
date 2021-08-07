@@ -54,7 +54,7 @@ class DsulDaemonTest(unittest.TestCase):
         logging.disable(logging.CRITICAL)  # disable most logging during test
         self.ipc_host = "localhost"
         self.ipc_port = 5796
-        self.dd = dd.DsulDaemon([])  # use default setttings
+        self.dd = dd.DsulDaemon()  # use default setttings
 
     def test_ipc_tcp_started(self):
         """Test IPC server started."""
