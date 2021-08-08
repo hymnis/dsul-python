@@ -9,9 +9,9 @@ pytest-cov>=2.10.0
 pytest-cover==3.0.0
 pytest-coverage
 pylama>=7.6.6
-pre-commit>=2.8.0
+pre-commit>=2.13.0
 setuptools==44.0.0
-pep517>=0.8.0
+pep517>=0.10.0
 configparser>=4.0.2
 pyserial==3.4
 PyYAML>=5.3

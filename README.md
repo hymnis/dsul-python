@@ -1,6 +1,6 @@
 # DSUL - Disturb State USB Light
 
-[![Build Status](https://travis-ci.org/hymnis/dsul-python.svg?branch=master)](https://travis-ci.org/hymnis/dsul-python)
+[![Build Status](https://travis-ci.com/hymnis/dsul-python.svg?branch=master)](https://travis-ci.com/github/hymnis/dsul-python)
 [![Maintainability](https://api.codeclimate.com/v1/badges/0a360f196a019278c3eb/maintainability)](https://codeclimate.com/github/hymnis/dsul-python/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/0a360f196a019278c3eb/test_coverage)](https://codeclimate.com/github/hymnis/dsul-python/test_coverage)
 [![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
