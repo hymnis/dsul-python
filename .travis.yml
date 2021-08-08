@@ -25,7 +25,7 @@ before_script:
 
 script:
   - flake8 dsul/*.py
-  - mypy --install-types
+  - mypy --install-types || true
   - mypy dsul
   - pylint dsul || true
   - pytest
