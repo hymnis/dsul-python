@@ -10,7 +10,7 @@ pytest-cover>=3.0.0
 pytest-coverage
 pylama>=7.7
 pre-commit>=2.13.0
-setuptools==44.0.0
+setuptools==65.5.1
 types-setuptools>=57.0
 build>=0.6
 configparser>=5.0
