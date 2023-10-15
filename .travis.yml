@@ -1,6 +1,6 @@
 language: python
 os: linux
-dist: bionic
+dist: focal
 
 branches:
   only:
@@ -11,9 +11,9 @@ env:
     - CC_TEST_REPORTER_ID=1c104053bc2f9addd05159a78da700015ff8e6ea3f85bd613745ace98914e890
 
 python:
-- 3.6
 - 3.7
 - 3.8
+- 3.9
 
 install:
 - pip install -r requirements.development.txt
