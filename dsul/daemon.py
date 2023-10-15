@@ -415,7 +415,7 @@ class DsulDaemon:  # pylint: disable=R0902
             self.logger.info("Serial Response: Resend/Request")
         elif command == "-?#":  # ping
             self.logger.info("Serial Response: Ping")
-            self.__send_ok()
+            self.__send_ping()  # Send 'ping' to force response from device
         elif command == "+!#":  # ok
             self.logger.info("Serial Response: OK")
         elif command == "+?#":  # unknown/error
@@ -684,7 +684,7 @@ class DsulDaemon:  # pylint: disable=R0902
             f"current_mode={self.current_mode};"
             f"current_brightness={self.current_brightness};"
             f"current_color={self.current_color};"
-            f"current_dim={self.current_dim};"
+            f"current_dim={self.current_dim}"
         )
 
 
